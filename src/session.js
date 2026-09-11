@@ -74,6 +74,9 @@ export function touchActivity() {
  */
 export function setAutoLockMinutes(minutes) {
     autoLockMinutes = minutes;
+    if (sessionKey !== null) {
+        startAutoLockTimer();
+    }
 }
 
 /**

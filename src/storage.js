@@ -293,14 +293,22 @@ export async function hasData() {
 
 /**
  * Compute a fingerprint of the accounts array for backup staleness detection.
- * Only considers label + secret (the essential data), ignoring internal fields.
+ * Includes every field that affects the generated code or account identity,
+ * while ignoring IDs and array order.
  * Returns a hex-encoded SHA-256 hash.
  */
 export async function computeAccountsFingerprint(accounts) {
     if (!accounts || accounts.length === 0) return null;
     const essential = accounts
-        .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
-        .sort((a, b) => a.label.localeCompare(b.label) || a.secret.localeCompare(b.secret));
+        .map(a => ({
+            issuer: a.issuer ?? '',
+            accountName: a.accountName ?? '',
+            secret: a.secret ?? '',
+            algorithm: a.algorithm ?? 'SHA1',
+            digits: a.digits ?? 6,
+            period: a.period ?? 30,
+        }))
+        .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
     const json = JSON.stringify(essential);
     const encoded = new TextEncoder().encode(json);
     const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);

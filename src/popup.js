@@ -1681,6 +1681,59 @@ async function copyCode(accountId, cardElement) {
 // ========================================
 // Account Modal
 // ========================================
+/**
+ * Build the account represented by the manual account form.
+ *
+ * The form exposes one label and the secret only. Keep the metadata that the
+ * form cannot edit when updating an existing account, since it can affect the
+ * generated code or the account's display identity.
+ */
+export function buildAccountFromForm(existingAccount, label, secret) {
+    if (existingAccount) {
+        const existingIssuer = typeof existingAccount.issuer === 'string'
+            ? existingAccount.issuer
+            : '';
+        const hasIssuer = existingIssuer.trim().length > 0;
+        const hasDistinctAccountName = hasIssuer
+            && typeof existingAccount.accountName === 'string'
+            && existingAccount.accountName !== existingIssuer;
+        return {
+            ...existingAccount,
+            issuer: hasIssuer ? label : '',
+            accountName: hasDistinctAccountName ? existingAccount.accountName : label,
+            secret: normalizeSecret(secret),
+            algorithm: existingAccount.algorithm ?? 'SHA1',
+            digits: existingAccount.digits ?? 6,
+            period: existingAccount.period ?? 30,
+        };
+    }
+
+    return {
+        id: generateId(),
+        issuer: label,
+        accountName: label,
+        secret: normalizeSecret(secret),
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+    };
+}
+
+/**
+ * Project an account into the encrypted v3 backup representation.
+ * Internal IDs are deliberately omitted so imports can issue fresh IDs.
+ */
+export function buildV3BackupAccount(account) {
+    return {
+        issuer: account.issuer ?? '',
+        accountName: account.accountName ?? '',
+        secret: account.secret,
+        algorithm: account.algorithm ?? 'SHA1',
+        digits: account.digits ?? 6,
+        period: account.period ?? 30,
+    };
+}
+
 function openAccountModal(editId) {
     editingAccountId = editId || null;
     resetModal();
@@ -1736,15 +1789,11 @@ async function handleSaveAccount() {
         return;
     }
 
-    const account = {
-        id: editingAccountId || generateId(),
-        issuer: label,
-        accountName: label,
-        secret: normalizeSecret(secret),
-        algorithm: 'SHA1',
-        digits: 6,
-        period: 30,
-    };
+    const existingAccount = editingAccountId
+        ? accounts.find(a => a.id === editingAccountId)
+        : null;
+    const account = buildAccountFromForm(existingAccount, label, secret);
+    const isEditing = Boolean(editingAccountId);
 
     // Save
     if (editingAccountId) {
@@ -1758,7 +1807,7 @@ async function handleSaveAccount() {
     closeAccountModal();
     renderAccounts();
     updateTopBarBackupBadge();
-    showToast(editingAccountId ? 'Account updated' : 'Account added');
+    showToast(isEditing ? 'Account updated' : 'Account added');
 }
 
 // ========================================
@@ -1917,17 +1966,15 @@ async function handleExport() {
         const salt = generateSalt();
         const exportKey = await deriveKey(pw, salt);
 
-        // Export only essential data: label + secret pairs
-        const essentialData = accounts.map(a => ({
-            label: a.issuer || a.accountName,
-            secret: a.secret,
-        }));
-        const plaintext = JSON.stringify(essentialData);
+        // Keep every field needed to reproduce the OTP stream and account
+        // identity. IDs are intentionally excluded; imports create fresh IDs.
+        const backupAccounts = accounts.map(buildV3BackupAccount);
+        const plaintext = JSON.stringify(backupAccounts);
         const encrypted = await encrypt(plaintext, exportKey);
 
         const exportData = {
             format: 'redd-2fa-backup',
-            version: 2,
+            version: 3,
             salt,
             ...encrypted,
         };
@@ -1991,20 +2038,10 @@ async function handleImport() {
                 const importKey = await dk(pw, data.salt);
                 try {
                     const plaintext = await dec(data.iv, data.ciphertext, importKey);
-                    let imported = JSON.parse(plaintext);
-
-                    // v2 format: convert label+secret pairs to full account objects
-                    if (data.version >= 2) {
-                        imported = imported.map(item => ({
-                            id: generateId(),
-                            issuer: item.label,
-                            accountName: item.label,
-                            secret: item.secret,
-                            algorithm: 'SHA1',
-                            digits: 6,
-                            period: 30,
-                        }));
-                    }
+                    const imported = normaliseEncryptedBackup(
+                        data.version,
+                        JSON.parse(plaintext),
+                    );
 
                     await importMerge(imported, key);
                 } catch {
@@ -2047,6 +2084,75 @@ async function handleImport() {
     } catch {
         showElement(importError, 'Import failed. Check file format.');
     }
+}
+
+function normaliseBackupAlgorithm(value) {
+    const algorithm = String(value ?? 'SHA1').toUpperCase();
+    return ['SHA1', 'SHA256', 'SHA512'].includes(algorithm) ? algorithm : 'SHA1';
+}
+
+function normaliseBackupDigits(value) {
+    const parsed = parseInt(String(value ?? '6'), 10);
+    return parsed === 8 ? 8 : 6;
+}
+
+function normaliseBackupPeriod(value) {
+    const parsed = parseInt(String(value ?? '30'), 10);
+    return parsed > 0 ? parsed : 30;
+}
+
+/** Convert a legacy v2 label + secret entry into an account object. */
+export function normaliseV2BackupAccount(item) {
+    return {
+        id: generateId(),
+        issuer: item.label,
+        accountName: item.label,
+        secret: item.secret,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+    };
+}
+
+/**
+ * Convert one v3 backup entry to a safe account object.
+ * Invalid entries are rejected by returning null; valid optional parameters
+ * follow parseOtpauthURI's defaults and supported-value handling.
+ */
+export function normaliseV3BackupAccount(item) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    if (typeof item.secret !== 'string') return null;
+
+    const secret = normalizeSecret(item.secret);
+    if (!secret || !validateBase32(secret)) return null;
+
+    return {
+        id: generateId(),
+        issuer: typeof item.issuer === 'string' ? item.issuer : '',
+        accountName: typeof item.accountName === 'string' ? item.accountName : '',
+        secret,
+        algorithm: normaliseBackupAlgorithm(item.algorithm),
+        digits: normaliseBackupDigits(item.digits),
+        period: normaliseBackupPeriod(item.period),
+    };
+}
+
+/** Validate and normalise the decrypted account array for a backup version. */
+export function normaliseEncryptedBackup(version, imported) {
+    if (!Number.isInteger(version) || ![1, 2, 3].includes(version)) {
+        throw new Error('Unsupported encrypted backup version');
+    }
+    if (!Array.isArray(imported)) {
+        throw new Error(`Invalid v${version} backup data`);
+    }
+    if (version === 1) return imported;
+    if (version === 2) return imported.map(normaliseV2BackupAccount);
+
+    const normalised = imported.map(normaliseV3BackupAccount);
+    if (normalised.some(account => !account)) {
+        throw new Error('Invalid v3 account data');
+    }
+    return normalised;
 }
 
 async function importMerge(imported, key) {

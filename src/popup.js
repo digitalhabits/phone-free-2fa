@@ -9,7 +9,7 @@
 import browser from './browser.js';
 import { generateTOTP, getRemainingSeconds, parseOtpauthURI, buildOtpauthURI, validateBase32, normalizeSecret } from './totp.js';
 import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState } from './storage.js';
-import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
+import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback, captureLockEpoch, isLockEpochCurrent } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { checkPassphraseStrength } from './passphrase-strength.js';
 
@@ -774,6 +774,7 @@ let failedAttempts = 0;
 let lockoutUntil = 0;
 
 async function handleUnlock() {
+    const unlockEpoch = captureLockEpoch();
     const passphrase = unlockPassphraseInput.value;
     if (!passphrase) return;
 
@@ -790,6 +791,7 @@ async function handleUnlock() {
 
     try {
         const key = await unlockWithPassphrase(passphrase);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         if (!key) {
             failedAttempts++;
             // Progressive lockout: 5s after 5 failures, 30s after 10, 5min after 15
@@ -811,30 +813,36 @@ async function handleUnlock() {
             return;
         }
 
-        // Success — reset counter
-        failedAttempts = 0;
-        lockoutUntil = 0;
+        // Read the vault before publishing the key. If a lock happens while
+        // either operation is pending, the epoch check prevents the old
+        // completion from restoring the wiped page state.
+        const loadedAccounts = await loadAccounts(key);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         await clearLockoutState();
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loadedAccounts;
         unlockPassphraseInput.value = '';
         updateAllVisibilityToggles();
         hideElement(unlockError);
         showScreen('main');
-        renderAccounts();
+        await renderAccounts(unlockEpoch);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
 
         // Offer biometric setup if not already configured
         const existingBiometric = await loadBiometricData();
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         if (!existingBiometric) {
-            await promptBiometricSetup(passphrase);
+            await promptBiometricSetup(passphrase, unlockEpoch);
         }
     } catch (err) {
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         showElement(unlockError, 'Failed to unlock. Please try again.');
+    } finally {
+        unlockBtn.disabled = false;
+        unlockBtn.textContent = 'Unlock';
     }
-
-    unlockBtn.disabled = false;
-    unlockBtn.textContent = 'Unlock';
 }
 
 // ========================================
@@ -888,13 +896,15 @@ function showBiometricSetupFromSettings() {
     biometricPromptOverlay.style.display = 'flex';
 }
 
-async function promptBiometricSetup(passphrase) {
+async function promptBiometricSetup(passphrase, expectedEpoch = captureLockEpoch()) {
     try {
         const available = await isBiometricAvailable();
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         if (!available) return;
 
         // Check if user dismissed the prompt permanently
         const { redd2fa_biometric_dont_ask } = await browser.storage.local.get('redd2fa_biometric_dont_ask');
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         if (redd2fa_biometric_dont_ask) return;
 
         pendingPassphrase = passphrase;
@@ -942,11 +952,14 @@ async function enableBiometricFromSettings() {
  * Handle biometric unlock from the lock screen.
  */
 async function handleBiometricUnlock() {
+    const unlockEpoch = captureLockEpoch();
     if (await needsTabWorkaroundForWebAuthn()) {
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         try {
             biometricUnlockBtn.disabled = true;
             hideElement(biometricError);
-            await openBiometricTab('unlock');
+            await openBiometricTab('unlock', unlockEpoch);
+            if (!isLockEpochCurrent(unlockEpoch)) return;
         } catch (err) {
             console.error('Failed to open biometric unlock tab:', err);
             biometricUnlockBtn.disabled = false;
@@ -960,11 +973,14 @@ async function handleBiometricUnlock() {
         hideElement(biometricError);
 
         const biometricData = await loadBiometricData();
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         if (!biometricData) return;
 
 
         const passphrase = await authenticateBiometric(biometricData);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         const key = await unlockWithPassphrase(passphrase);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         if (!key) {
             showElement(biometricError, 'Biometric data outdated. Please use your passphrase.');
             return;
@@ -974,13 +990,17 @@ async function handleBiometricUnlock() {
         failedAttempts = 0;
         lockoutUntil = 0;
         await clearLockoutState();
+        if (!isLockEpochCurrent(unlockEpoch)) return;
+        const loadedAccounts = await loadAccounts(key);
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loadedAccounts;
         hideElement(biometricError);
         showScreen('main');
-        renderAccounts();
+        await renderAccounts(unlockEpoch);
     } catch (err) {
+        if (!isLockEpochCurrent(unlockEpoch)) return;
         showElement(biometricError, 'Touch ID failed. Try again or use your passphrase.');
     } finally {
         biometricUnlockBtn.disabled = false;
@@ -1044,7 +1064,7 @@ async function needsTabWorkaroundForWebAuthn() {
     return true;
 }
 
-async function openBiometricTab(mode) {
+async function openBiometricTab(mode, expectedEpoch = captureLockEpoch()) {
     if (biometricTab) {
         // Focus the existing tab rather than spawn a duplicate. If the tracked
         // tab is gone (closed before our onRemoved handler ran, or some other
@@ -1060,7 +1080,7 @@ async function openBiometricTab(mode) {
     }
     const url = browser.runtime.getURL(`biometric-tab.html?mode=${mode}`);
     const tab = await browser.tabs.create({ url, active: true });
-    biometricTab = { id: tab.id, mode };
+    biometricTab = { id: tab.id, mode, epoch: expectedEpoch };
     biometricTabRemoveListener = (closedId) => {
         if (biometricTab && closedId === biometricTab.id) {
             handleBiometricTabClosedUnexpectedly();
@@ -1145,13 +1165,17 @@ function initBiometricMessaging() {
                 return;
 
             case 'biometric-unlock-result':
-                handleBiometricUnlockResult(message);
+                handleBiometricUnlockResult(message, biometricTab?.epoch);
                 return;
         }
     });
 }
 
-async function handleBiometricUnlockResult(message) {
+async function handleBiometricUnlockResult(message, expectedEpoch) {
+    if (expectedEpoch == null || !isLockEpochCurrent(expectedEpoch)) {
+        clearBiometricTab();
+        return;
+    }
     clearBiometricTab();
     biometricUnlockBtn.disabled = false;
 
@@ -1166,6 +1190,7 @@ async function handleBiometricUnlockResult(message) {
 
     try {
         const key = await unlockWithPassphrase(message.passphrase);
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         if (!key) {
             showElement(biometricError, 'Biometric data outdated. Please use your passphrase.');
             return;
@@ -1173,13 +1198,17 @@ async function handleBiometricUnlockResult(message) {
         failedAttempts = 0;
         lockoutUntil = 0;
         await clearLockoutState();
+        if (!isLockEpochCurrent(expectedEpoch)) return;
+        const loadedAccounts = await loadAccounts(key);
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loadedAccounts;
         hideElement(biometricError);
         showScreen('main');
-        renderAccounts();
+        await renderAccounts(expectedEpoch);
     } catch {
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         showElement(biometricError, 'Failed to unlock. Please try again.');
     }
 }
@@ -1348,7 +1377,8 @@ async function updateBiometricToggle() {
 // ========================================
 // Account rendering
 // ========================================
-async function renderAccounts() {
+async function renderAccounts(expectedEpoch = captureLockEpoch()) {
+    if (!isLockEpochCurrent(expectedEpoch)) return;
     const query = searchInput.value.toLowerCase().trim();
     const filtered = query
         ? accounts.filter(a =>
@@ -1358,6 +1388,7 @@ async function renderAccounts() {
         : accounts;
 
     if (accounts.length === 0) {
+        if (!isLockEpochCurrent(expectedEpoch)) return;
         accountList.style.display = 'none';
         emptyState.style.display = 'block';
         return;
@@ -1370,6 +1401,7 @@ async function renderAccounts() {
     const codes = await Promise.all(
         filtered.map(a => generateTOTP(a.secret, a.digits, a.period, a.algorithm))
     );
+    if (!isLockEpochCurrent(expectedEpoch)) return;
 
     const fragment = document.createDocumentFragment();
     const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -1777,6 +1809,11 @@ function closeChangePassphraseModal() {
 }
 
 async function handleChangePassphrase() {
+    const changeEpoch = captureLockEpoch();
+    // Keep an immutable snapshot across current-passphrase verification. A
+    // lock wipes the live array; using it after an await would rotate an
+    // empty vault instead of the vault the user asked to change.
+    const accountsSnapshot = accounts.map(account => ({ ...account }));
     const current = $('current-passphrase').value;
     const newPw = $('new-passphrase').value;
     const newPwConfirm = $('new-passphrase-confirm').value;
@@ -1789,6 +1826,7 @@ async function handleChangePassphrase() {
 
     // Verify current passphrase
     const key = await unlockWithPassphrase(current);
+    if (!isLockEpochCurrent(changeEpoch)) return;
     if (!key) {
         showElement(errorEl, 'Current passphrase is incorrect.');
         return;
@@ -1814,15 +1852,22 @@ async function handleChangePassphrase() {
     }
 
     try {
-        const newKey = await changePassphrase(accounts, newPw);
-        setSessionKey(newKey);
+        const newKey = await changePassphrase(accountsSnapshot, newPw);
 
-        // Clear biometric data — it wraps the old passphrase
-        await clearBiometricData();
+        // Rotation invalidates the old biometric wrapper even when the panel
+        // locked while the atomic storage write was in flight.
+        try {
+            await clearBiometricData();
+        } catch (err) {
+            console.error('Failed to clear obsolete biometric data:', err);
+        }
+        if (!isLockEpochCurrent(changeEpoch)) return;
+        setSessionKey(newKey);
 
         closeChangePassphraseModal();
         showToast('Passphrase changed successfully');
-    } catch {
+    } catch (err) {
+        if (!isLockEpochCurrent(changeEpoch)) return;
         showElement(errorEl, 'Failed to change passphrase. Please try again.');
     }
 }

@@ -11,6 +11,17 @@ let lastActivity = Date.now();
 let autoLockMinutes = 5;
 let lockCheckInterval = null;
 let onLockCallback = null;
+let lockEpoch = 0;
+
+/** Capture the lock generation before starting an asynchronous operation. */
+export function captureLockEpoch() {
+    return lockEpoch;
+}
+
+/** Return whether an asynchronous operation started in this generation. */
+export function isLockEpochCurrent(epoch) {
+    return epoch === lockEpoch;
+}
 
 /**
  * Register a callback to be called when the session auto-locks.
@@ -46,6 +57,7 @@ export function isUnlocked() {
  * Lock the session — wipe the key from memory.
  */
 export function lock() {
+    lockEpoch += 1;
     sessionKey = null;
     stopAutoLockTimer();
 }

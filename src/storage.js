@@ -14,6 +14,15 @@ const STORAGE_KEY_SETTINGS = 'redd2fa_settings';
 const STORAGE_KEY_BACKUP_FINGERPRINT = 'redd2fa_backup_fingerprint';
 const STORAGE_KEY_LOCKOUT = 'redd2fa_lockout';
 const SCHEMA_VERSION = 1;
+const VAULT_WRITE_LOCK_NAME = 'redd2fa-vault-write';
+
+// Keep this message stable: callers can use it to distinguish a stale page
+// from an ordinary storage failure and send the user back through unlock.
+export const STALE_SESSION_ERROR = 'Vault changed in another window. Please unlock again.';
+
+// This is per extension page/module instance. It is deliberately updated only
+// after a successful metadata + ciphertext write (or a successful unlock).
+let activeRevision = null;
 
 /** Default settings */
 export const DEFAULT_SETTINGS = {
@@ -23,6 +32,38 @@ export const DEFAULT_SETTINGS = {
     fetchIcons: false,
     accountHelpExpanded: true,
 };
+
+function getEffectiveRevision(meta) {
+    if (!meta) return null;
+    // Old vaults have no revision. Their salt is immutable until the next
+    // passphrase rotation, so it is a stable revision for stale-write checks.
+    return meta.revision || `legacy:${meta.salt}`;
+}
+
+function staleSessionError() {
+    return new Error(STALE_SESSION_ERROR);
+}
+
+function assertActiveRevision(meta, expectedRevision = activeRevision) {
+    const storedRevision = getEffectiveRevision(meta);
+    if (!expectedRevision || storedRevision !== expectedRevision) {
+        throw staleSessionError();
+    }
+    return storedRevision;
+}
+
+/**
+ * Serialise all vault writes across extension pages where Web Locks exists.
+ * Browsers without Web Locks still get the read/compare/write check in the
+ * callback, which preserves stale-page protection as a compatibility fallback.
+ */
+async function withVaultWriteLock(callback) {
+    const locks = globalThis.navigator?.locks;
+    if (locks?.request) {
+        return locks.request(VAULT_WRITE_LOCK_NAME, callback);
+    }
+    return callback();
+}
 
 /**
  * Check if this is the first launch (no meta stored).
@@ -37,22 +78,28 @@ export async function isFirstLaunch() {
  * Generates salt, derives key, stores empty encrypted accounts.
  */
 export async function setupPassphrase(passphrase) {
-    const salt = generateSalt();
-    const key = await deriveKey(passphrase, salt);
-    const passphraseHash = await createPassphraseHash(passphrase, salt);
+    return withVaultWriteLock(async () => {
+        const salt = generateSalt();
+        const key = await deriveKey(passphrase, salt);
+        const passphraseHash = await createPassphraseHash(passphrase, salt);
+        const revision = generateSalt();
+        const encrypted = await encrypt(JSON.stringify([]), key);
 
-    // Store meta
-    const meta = {
-        salt,
-        passphraseHash,
-        version: SCHEMA_VERSION,
-    };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
-
-    // Store empty accounts
-    await saveAccounts([], key);
-
-    return key;
+        const meta = {
+            salt,
+            passphraseHash,
+            revision,
+            version: SCHEMA_VERSION,
+        };
+        // Keep initial metadata and ciphertext atomic. A failed set leaves a
+        // genuinely first-launch vault rather than half-created credentials.
+        await browser.storage.local.set({
+            [STORAGE_KEY_META]: meta,
+            [STORAGE_KEY_DATA]: encrypted,
+        });
+        activeRevision = revision;
+        return key;
+    });
 }
 
 /**
@@ -68,7 +115,9 @@ export async function unlockWithPassphrase(passphrase) {
     const isValid = await verifyPassphrase(passphrase, meta.salt, meta.passphraseHash);
     if (!isValid) return null;
 
-    return deriveKey(passphrase, meta.salt);
+    const key = await deriveKey(passphrase, meta.salt);
+    activeRevision = getEffectiveRevision(meta);
+    return key;
 }
 
 /**
@@ -76,27 +125,47 @@ export async function unlockWithPassphrase(passphrase) {
  * Returns the new CryptoKey.
  */
 export async function changePassphrase(accounts, newPassphrase) {
-    const salt = generateSalt();
-    const newKey = await deriveKey(newPassphrase, salt);
-    const passphraseHash = await createPassphraseHash(newPassphrase, salt);
+    const expectedRevision = activeRevision;
+    return withVaultWriteLock(async () => {
+        const result = await browser.storage.local.get(STORAGE_KEY_META);
+        const oldMeta = result[STORAGE_KEY_META];
+        assertActiveRevision(oldMeta, expectedRevision);
 
-    // Update meta with new salt and hash
-    const meta = { salt, passphraseHash, version: SCHEMA_VERSION };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
+        const salt = generateSalt();
+        const newKey = await deriveKey(newPassphrase, salt);
+        const passphraseHash = await createPassphraseHash(newPassphrase, salt);
+        const revision = generateSalt();
+        const encrypted = await encrypt(JSON.stringify(accounts), newKey);
+        // In the compatibility path without Web Locks, preparation can yield
+        // to another page. Re-check immediately before the single write too.
+        const latest = await browser.storage.local.get(STORAGE_KEY_META);
+        assertActiveRevision(latest[STORAGE_KEY_META], expectedRevision);
+        const meta = { salt, passphraseHash, revision, version: SCHEMA_VERSION };
 
-    // Re-encrypt accounts with the new key
-    await saveAccounts(accounts, newKey);
-
-    return newKey;
+        // One write preserves the old usable vault if any preparation or the
+        // browser write itself fails.
+        await browser.storage.local.set({
+            [STORAGE_KEY_META]: meta,
+            [STORAGE_KEY_DATA]: encrypted,
+        });
+        activeRevision = revision;
+        return newKey;
+    });
 }
 
 /**
  * Save accounts (encrypted) to storage.
  */
 export async function saveAccounts(accounts, key) {
-    const plaintext = JSON.stringify(accounts);
-    const encrypted = await encrypt(plaintext, key);
-    await browser.storage.local.set({ [STORAGE_KEY_DATA]: encrypted });
+    const expectedRevision = activeRevision;
+    return withVaultWriteLock(async () => {
+        const result = await browser.storage.local.get(STORAGE_KEY_META);
+        assertActiveRevision(result[STORAGE_KEY_META], expectedRevision);
+        const encrypted = await encrypt(JSON.stringify(accounts), key);
+        const latest = await browser.storage.local.get(STORAGE_KEY_META);
+        assertActiveRevision(latest[STORAGE_KEY_META], expectedRevision);
+        await browser.storage.local.set({ [STORAGE_KEY_DATA]: encrypted });
+    });
 }
 
 /**

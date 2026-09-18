@@ -19,7 +19,7 @@ A second, LLM-assisted review by an external reader (5 September 2026) overlappe
 | A | Encrypted backup drops algorithm / digits / period (external review, High) | Fixed | `src/backup.js` (format v3) | `tests/backup.test.js` |
 | A2 | Editing an account reset algorithm / digits / period (found while fixing A; independently by Konrad Kollnig, PR #8) | Fixed | `accountFromForm` in `src/accounts.js` | `tests/accounts.test.js` |
 | 1 | Change-passphrase can lock the vault | Fixed | `writeVault` in `src/storage.js` — one atomic write | `tests/storage.test.js` (failure injection) |
-| 2 | Release pipeline supply chain | Fixed in repo; **needs the `store-release` environment configured on GitHub** | `.github/workflows/release.yml`, `tools/` | `tests/release-pipeline.test.js` |
+| 2 | Release pipeline supply chain | Fixed. `store-release` environment configured 2026-09-18: required reviewer, `main` + `v*` only, store secrets moved there and removed from repo level | `.github/workflows/release.yml`, `tools/` | `tests/release-pipeline.test.js` |
 | 3 | `tabs` permission unnecessary | Fixed | `src/manifest.json` | `tests/no-network.test.js` + *manual* §5 |
 | 4 | Passphrase retained after "Not now" | Fixed | `biometric-skip-btn` handler in `src/popup.js` | *manual* §3 |
 | 5 | No explicit CSP | Fixed | `src/manifest.json` | `tests/no-network.test.js` + *manual* §5 |

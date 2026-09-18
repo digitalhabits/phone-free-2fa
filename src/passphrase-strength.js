@@ -4,7 +4,8 @@
  * Pure, auditable passphrase-strength heuristics. Designed to be readable
  * end-to-end in a few minutes. No external data, no network, no async.
  *
- * What we reject at setup / change-passphrase time:
+ * What we reject for every new secret the user chooses — the master
+ * passphrase (setup and change) and the encrypted-backup password:
  *   1. Low character diversity: fewer than 5 unique characters in the
  *      entire passphrase.
  *   2. Repeating patterns: 4+ identical characters in a row, or any
@@ -183,5 +184,44 @@ export function checkPassphraseStrength(passphrase) {
         };
     }
 
+    return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// The one policy for every new passphrase
+// ---------------------------------------------------------------------------
+export const MIN_PASSPHRASE_LENGTH = 12;
+
+// Example phrases shown in the setup tips — must not be used verbatim.
+const EXAMPLE_PASSPHRASES = [
+    'correct-horse-battery-staple',
+    'My dog loves chasing squirrels in the park!',
+];
+
+function isExamplePassphrase(passphrase) {
+    const normalized = passphrase.trim().toLowerCase();
+    return EXAMPLE_PASSPHRASES.some((ex) => ex.toLowerCase() === normalized);
+}
+
+/**
+ * The full policy for a new master passphrase OR a new backup password.
+ * Setup, change-passphrase and backup export all call this, so the rules
+ * cannot drift apart. A backup file can be copied off the machine and
+ * attacked offline, so its password gets no weaker a rule than the vault.
+ *
+ * Returns { ok: true }, or { ok: false, reason, message } where reason is
+ * 'too-short' | 'example' | 'weak'.
+ */
+export function validateNewPassphrase(passphrase) {
+    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
+        return { ok: false, reason: 'too-short', message: `Use at least ${MIN_PASSPHRASE_LENGTH} characters.` };
+    }
+    if (isExamplePassphrase(passphrase)) {
+        return { ok: false, reason: 'example', message: 'Please choose your own passphrase, not one of the example phrases.' };
+    }
+    const strength = checkPassphraseStrength(passphrase);
+    if (!strength.ok) {
+        return { ok: false, reason: 'weak', message: strength.message };
+    }
     return { ok: true };
 }

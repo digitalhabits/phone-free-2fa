@@ -120,7 +120,7 @@ test('setup refuses to replace a vault that another window just created', async 
     assert.deepEqual(fake.dump(), before);
 });
 
-test('vaults created by 2.7 (no extra stored fields) get the same protection', async () => {
+test('vaults created by 2.8 or earlier (no extra stored fields) get the same protection', async () => {
     const { a, b, bKey } = await twoUnlockedWindows();
     assert.deepEqual(Object.keys(fake.dump().redd2fa_meta).sort(), ['passphraseHash', 'salt', 'version'], 'no schema change');
     await a.changePassphrase([A1], NEW);

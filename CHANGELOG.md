@@ -16,7 +16,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
-## [2.8] - unreleased
+## [2.9] - unreleased
 
 Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07.md`). Every fix has a test in `tests/` (`npm test`, no dependencies).
 
@@ -43,6 +43,14 @@ Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07
 - Account IDs now come from `crypto.randomUUID()` instead of `Math.random()`.
 - Backup passwords now have to pass the same strength rules as the master passphrase (they only had a 12-character minimum). A backup file can be copied and attacked offline, so its password matters at least as much. Setup, change-passphrase and export share one rule set. (`validateNewPassphrase` in `src/passphrase-strength.js`, `tests/passphrase-policy.test.js`)
 - The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. (`src/storage.js`)
+
+## [2.8] - 2026-07-31
+
+### Changed
+
+- **Meet Digital Habits: Phone-Free 2FA!** Renamed from **Phone-Free 2FA** as
+  part of the move from the Reduce Digital Distraction (ReDD) Project to
+  **Centre for Digital Habits** ([digitalhabits.org](https://digitalhabits.org)).
 
 ## [2.7] - 2026-07-25
 

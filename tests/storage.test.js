@@ -135,8 +135,8 @@ test('backup fingerprint is salted: same accounts, different stored value each t
     assert.notEqual(first.hash, second.hash);
 });
 
-/** The unsalted label + secret fingerprint exactly as 2.7 computed it. */
-async function fingerprintAsOf27(accounts) {
+/** The unsalted label + secret fingerprint exactly as releases up to 2.8 computed it. */
+async function legacyFingerprint(accounts) {
     const essential = accounts
         .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
         .sort((a, b) => a.label.localeCompare(b.label) || a.secret.localeCompare(b.secret));
@@ -144,9 +144,9 @@ async function fingerprintAsOf27(accounts) {
     return Buffer.from(hash).toString('hex');
 }
 
-test('upgrade from 2.7: backup of default-parameter accounts stays current and is re-salted', async () => {
+test('upgrade from 2.8 or earlier: backup of default-parameter accounts stays current and is re-salted', async () => {
     const defaults = [ACCOUNTS[0]];
-    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27(defaults) });
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await legacyFingerprint(defaults) });
 
     assert.equal(await storage.getBackupStatus(defaults), 'current');
     const stored = fake.dump().redd2fa_backup_fingerprint;
@@ -154,13 +154,13 @@ test('upgrade from 2.7: backup of default-parameter accounts stays current and i
     assert.equal(await storage.getBackupStatus(defaults), 'current');
 });
 
-test('upgrade from 2.7: a v2 backup could not hold non-default accounts, so it is stale', async () => {
-    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27(ACCOUNTS) });
+test('upgrade from 2.8 or earlier: a v2 backup could not hold non-default accounts, so it is stale', async () => {
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await legacyFingerprint(ACCOUNTS) });
     assert.equal(await storage.getBackupStatus(ACCOUNTS), 'stale'); // ACCOUNTS[1] is SHA256 / 8 / 60
 });
 
-test('upgrade from 2.7: accounts changed since the old backup → stale', async () => {
-    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27([ACCOUNTS[0]]) });
+test('upgrade from 2.8 or earlier: accounts changed since the old backup → stale', async () => {
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await legacyFingerprint([ACCOUNTS[0]]) });
     const changed = [{ ...ACCOUNTS[0], secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
     assert.equal(await storage.getBackupStatus(changed), 'stale');
 });

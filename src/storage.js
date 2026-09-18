@@ -316,7 +316,7 @@ export async function hasData() {
 // hash = SHA-256(salt + canonical account list). The random salt means the
 // stored value cannot be tested against guessed labels or secrets.
 //
-// Releases up to 2.7 stored a bare, unsalted hex string over label + secret
+// Releases up to 2.8 stored a bare, unsalted hex string over label + secret
 // only. Those are recognised once and then replaced — see getBackupStatus().
 // ----------------------------------------
 const FINGERPRINT_VERSION = 2;
@@ -326,7 +326,7 @@ async function sha256Hex(text) {
     return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** True if a 2.7-era (v2) backup file could hold this account without loss. */
+/** True if a v2 backup file (releases up to 2.8) could hold this account without loss. */
 function hasDefaultParameters(account) {
     return (account.algorithm ?? 'SHA1') === 'SHA1'
         && (account.digits ?? 6) === 6
@@ -348,7 +348,7 @@ export async function computeAccountsFingerprint(accounts, salt) {
     return sha256Hex(salt + JSON.stringify(rows));
 }
 
-/** The fingerprint as computed by releases up to 2.7. Only used to recognise old stored values. */
+/** The fingerprint as computed by releases up to 2.8. Only used to recognise old stored values. */
 async function computeLegacyFingerprint(accounts) {
     const essential = accounts
         .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
@@ -412,7 +412,7 @@ export async function getBackupStatus(accounts) {
     if (!saved) return 'never';
 
     if (typeof saved === 'string') {
-        // Written by 2.7 or earlier, whose backups held label + secret only.
+        // Written by 2.8 or earlier, whose backups held label + secret only.
         // Such a backup is complete only if nothing changed since AND every
         // account uses the default parameters. Otherwise ask for a new one.
         const unchanged = saved === await computeLegacyFingerprint(accounts);

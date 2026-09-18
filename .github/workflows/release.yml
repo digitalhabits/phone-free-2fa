@@ -7,6 +7,11 @@ on:
   # Manual trigger from the Actions tab: releases the version currently in
   # src/manifest.json and creates the v<version> tag automatically.
   workflow_dispatch:
+    inputs:
+      submit_to_stores:
+        description: Submit the zip to Chrome Web Store and Firefox Add-ons after creating the GitHub Release
+        type: boolean
+        default: true
 
 # Default for every job: read-only. Each job below asks for what it needs.
 permissions:
@@ -125,8 +130,13 @@ jobs:
   # Submits the released zip to the Chrome Web Store and Firefox Add-ons for
   # review. Waits for a reviewer's approval (environment protection rule).
   # Skips any store whose credentials are not configured.
+  # Tag pushes always submit; manual runs use the submit_to_stores checkbox
+  # (default: true) so a GitHub-only transparency release is opt-out.
   publish:
     needs: release
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.submit_to_stores)
     runs-on: ubuntu-latest
     environment: store-release
     permissions:

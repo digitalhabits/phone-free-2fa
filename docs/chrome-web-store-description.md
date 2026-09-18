@@ -2,12 +2,12 @@
 
 Use your computer browser for 2FA so you don't need to reach for your phone every time you log in to e.g. your Microsoft account.
 
-**Phone-Free 2FA** runs in your browser's sidebar, so your codes stay visible next to the page you're logging into — no hunting through pinned tabs or toolbar popups.
+**Digital Habits: Phone-Free 2FA** runs in your browser's sidebar, so your codes stay visible next to the page you're logging into — no hunting through pinned tabs or toolbar popups.
 
-Phone-Free 2FA is developed by computer scientists at the University of Oxford (Dr Ulrik Lyngs) and the University of Maastricht (Dr Konrad Kollnig, Henry Tari), as part of the Reduce Digital Distraction project (digitalhabits.org).
+Digital Habits: Phone-Free 2FA is developed by the Centre for Digital Habits (digitalhabits.org), with computer scientists at the University of Oxford (Dr Ulrik Lyngs) and the University of Maastricht (Dr Konrad Kollnig, Henry Tari).
 
 ⚙️ **How it works**
-Two-factor authentication (2FA) makes digital life much more secure — a hacker can't get in with your password alone. Phone-Free 2FA is an authenticator that uses the most common method: time-based one-time passwords (TOTP). You add a 2FA secret key from any service that supports TOTP (e.g. a university Microsoft account). Phone-Free 2FA encrypts it locally and generates a fresh 6-digit login code every 30 seconds.
+Two-factor authentication (2FA) makes digital life much more secure — a hacker can't get in with your password alone. Digital Habits: Phone-Free 2FA is an authenticator that uses the most common method: time-based one-time passwords (TOTP). You add a 2FA secret key from any service that supports TOTP (e.g. a university Microsoft account). Digital Habits: Phone-Free 2FA encrypts it locally and generates a fresh 6-digit login code every 30 seconds.
 
 All data is stored locally in encrypted form in the browser using the extension storage API. Nothing is sent over the network. The code is fully open-source — you can find it at https://github.com/ulyngs/phone-free-2fa
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Print the CHANGELOG.md section for one version (without its heading).
-#   tools/changelog-section.sh 2.8
+#   tools/changelog-section.sh 2.9
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 awk -v ver="$1" '

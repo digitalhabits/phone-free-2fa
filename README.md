@@ -1,8 +1,8 @@
-# Phone-Free 2FA
+# Digital Habits: Phone-Free 2FA
 
 Simple, secure, local-only authenticator browser extension for time-based one-time passwords (TOTP). Lets you use your computer for 2FA, so you can put your phone away when you need to focus.
 
-Built by computer scientists at the University of Oxford (Dr Ulrik Lyngs) and the University of Maastricht (Dr Konrad Kollnig, Henry Tari), as part of the Reduce Digital Distraction project ([digitalhabits.org](https://digitalhabits.org)).
+**Digital Habits: Phone-Free 2FA** is **open source**, developed by the [Centre for Digital Habits](https://digitalhabits.org), with computer scientists at the University of Oxford (Dr Ulrik Lyngs) and the University of Maastricht (Dr Konrad Kollnig, Henry Tari).
 
 See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
@@ -49,12 +49,12 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 ## Screenshots
 
 <p align="center">
-  <img src="./docs/screenshots/R2FA-git-1.png" alt="Phone-Free 2FA - 1" width="49%" />
-  <img src="./docs/screenshots/R2FA-git-3.png" alt="Phone-Free 2FA - 2" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-1.png" alt="Digital Habits: Phone-Free 2FA — 1" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-3.png" alt="Digital Habits: Phone-Free 2FA — 2" width="49%" />
 </p>
 <p align="center">
-  <img src="./docs/screenshots/R2FA-git-4.png" alt="Phone-Free 2FA - 3" width="49%" />
-  <img src="./docs/screenshots/R2FA-git-5.png" alt="Phone-Free 2FA - 4" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-4.png" alt="Digital Habits: Phone-Free 2FA — 3" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-5.png" alt="Digital Habits: Phone-Free 2FA — 4" width="49%" />
 </p>
 
 ## How It Works

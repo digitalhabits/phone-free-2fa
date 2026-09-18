@@ -10,7 +10,7 @@ The core design holds up. Vault encryption is textbook and correctly applied, no
 
 Two medium-severity issues were found (one data-loss risk, one release-pipeline supply-chain risk), plus a set of low and informational hardening items.
 
-## Status (updated 2026-09-18, for v2.8)
+## Status (updated 2026-09-18, for v2.9)
 
 A second, LLM-assisted review by an external reader (5 September 2026) overlapped with this one and added finding A below. Every fix has an automated test (`npm test`) unless marked *manual*, which means it needs a real browser — see `docs/manual-test-checklist.md`.
 

@@ -4,6 +4,6 @@
     "description": "Development-only manifest: runs the test suite. Not part of the shipped extension (only src/ is zipped). Deliberately has no dependencies.",
     "type": "module",
     "scripts": {
-        "test": "node --test tests/"
+        "test": "node --test"
     }
 }

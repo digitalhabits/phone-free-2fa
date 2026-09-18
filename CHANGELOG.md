@@ -9,10 +9,12 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 1. Bump `version` in `src/manifest.json`.
 2. Add a `## [x.y]` section above (with date and changes).
-3. Commit and push to `main`.
-4. Tag and push: `git tag vX.Y && git push origin vX.Y`
+3. Run `npm test` and go through [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md) in Chrome and Firefox.
+4. Commit and push to `main`.
+5. Tag and push: `git tag vX.Y && git push origin vX.Y`
+6. Approve the **publish** job when GitHub asks (Actions tab) — nothing reaches the stores without this.
 
-Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which checks the tag matches `manifest.json`, builds `phone-free-2fa-redd-vX.Y.zip`, and publishes a GitHub Release with that zip attached.
+Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
 ## [2.8] - unreleased
 
@@ -29,10 +31,12 @@ Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07
 
 ### Security
 
+- **Hardened the release pipeline.** Store credentials now live in an approval-gated `store-release` environment, in a job separate from the build; GitHub Actions are pinned to commit SHAs (and the third-party release action is replaced by GitHub's own CLI); the store publisher is installed from a committed lockfile with install scripts disabled instead of `npx`; releases are built from tested code only. The zip is reproducible and its SHA-256 is published, so anyone can verify a release against its tag. (`.github/workflows/release.yml`, `tools/`, `tests/release-pipeline.test.js`)
 - **Removed the `tabs` permission.** It was never needed (opening and closing the Touch ID tab works without it), and it caused the "read your browsing history" install warning. The extension now asks for `storage` and `sidePanel` only.
 - **Network access is now blocked by the browser, not just by us.** An explicit Content Security Policy sets `connect-src 'none'` and allows scripts only from the extension package. Guard tests fail if a network API, remote resource, or extra permission is ever added. (`src/manifest.json`, `tests/no-network.test.js`)
 - **Closing the panel during Touch ID setup could leave the vault unlocked.** Locking is paused while the Touch ID tab is open, but nothing resumed it if the panel was closed in the meantime — with auto-lock set to "Never", the vault stayed open indefinitely. The vault now locks as soon as the Touch ID tab finishes or closes with the panel hidden, after 2 minutes hidden regardless, and a key is never installed into a panel that was closed while it was being derived. (`src/lock-policy.js`, `tests/lock-policy.test.js`)
 - Clicking "Not now" on the Touch ID offer now clears the master passphrase from memory straight away, instead of keeping it until lock. Enabling Touch ID from Settings asks for it again.
+- README no longer claims biometric keys always stay in the security chip: that depends on the passkey provider.
 - Account IDs now come from `crypto.randomUUID()` instead of `Math.random()`.
 - Backup passwords now have to pass the same strength rules as the master passphrase (they only had a 12-character minimum). A backup file can be copied and attacked offline, so its password matters at least as much. Setup, change-passphrase and export share one rule set. (`validateNewPassphrase` in `src/passphrase-strength.js`, `tests/passphrase-policy.test.js`)
 - The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. (`src/storage.js`)

@@ -28,7 +28,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ### Biometric Unlock
 - **Touch ID / Windows Hello** — optional biometric unlock via WebAuthn
-- **Hardware-backed security** — passphrase is encrypted with a PRF-derived key (HKDF → AES-256-GCM) directly from the security chip; no keys are ever stored on disk
+- **As strong as your passkey provider** — the passphrase is encrypted with a key derived from your passkey (WebAuthn PRF → HKDF → AES-256-GCM); the extension never stores that key. With Chrome's built-in authenticator on a Mac, the passkey stays in the security chip. With a syncing provider (Google Password Manager, iCloud Keychain, 1Password), it is synced under that provider's end-to-end encryption, so biometric unlock is then as strong as that account
 - **Windows note** — Windows Hello does not currently support the WebAuthn PRF extension required for secure key derivation from a browser extension. Windows users should select **Google Password Manager** (or another password manager like 1Password) as their passkey provider when prompted, instead of "Windows Hello"
 - **Firefox note** — Firefox does not currently allow the WebAuthn / Credentials API from extension origins (`moz-extension://`), so biometric unlock is unavailable on Firefox. The Touch ID button is hidden there; use your master passphrase as normal. Tracked upstream at [bugzilla 1462088](https://bugzilla.mozilla.org/show_bug.cgi?id=1462088)
 - Biometric data is automatically cleared when passphrase is changed
@@ -109,9 +109,9 @@ No build step required — the extension runs as vanilla ES modules, and every f
 | Encryption | AES-256-GCM (Web Crypto API) |
 | Key derivation | PBKDF2 · 600,000 iterations · SHA-256 |
 | Passphrase verification | Constant-time XOR comparison of derived hashes |
-| Biometric key wrapping | WebAuthn PRF → HKDF → AES-256-GCM (Hardware-backed only) |
+| Biometric key wrapping | WebAuthn PRF → HKDF → AES-256-GCM (as strong as the passkey provider) |
 | TOTP generation | HMAC-SHA1/256/512 (Web Crypto API), RFC 6238 |
-| Network access | None — no host permissions declared |
+| Network access | None — no host permissions, and blocked by the browser via CSP `connect-src 'none'` |
 | Storage | `browser.storage.local` only |
 | Runtime dependencies | Zero (no build step, no bundler, no minified blobs — every shipped file is readable source) |
 
@@ -136,15 +136,34 @@ src/
 ├── crypto.js           # Encryption/decryption (AES-GCM, PBKDF2)
 ├── totp.js             # TOTP engine (Base32, HMAC, RFC 6238)
 ├── storage.js          # Encrypted storage manager + backup fingerprinting
+├── backup.js           # Encrypted backup file format (create / read)
+├── accounts.js         # Account objects: edit form, import validation
+├── lock-policy.js      # When to lock because the panel was hidden
 ├── session.js          # In-memory session & auto-lock
 ├── biometric.js        # WebAuthn biometric unlock (PRF hardware integration)
 ├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
 ├── biometric-tab.js    # Controller for the biometric tab
 ├── browser.js          # Minimal browser API shim
-├── passphrase-strength.js  # Hand-rolled strength check (~190 lines)
+├── passphrase-strength.js  # Passphrase policy + hand-rolled strength check
 ├── step1-3.png         # In-app setup instruction images
 └── icons/              # Extension icons
+
+tests/                  # node --test, no dependencies — never shipped
+tools/build-zip.sh      # Reproducible release zip (src/ only)
+tools/publish/          # Store publisher, pinned by lockfile — release-time only
 ```
+
+### Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`, `lock-policy.js`, `passphrase-strength.js`) so it can be tested directly: RFC 6238 vectors, backup round-trips for every algorithm / digits / period, storage-failure injection during passphrase change, and the lock-on-hide rules. Guard tests read the source as text and fail if a network API, an extra permission, an unpinned GitHub Action, or a store secret outside the approval-gated job ever appears. What needs a real browser is in [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
+
+### Verifying a release
+
+The zip on each [GitHub Release](https://github.com/ulyngs/phone-free-2fa/releases) is the exact file submitted to the stores, and the release notes list its SHA-256. To rebuild it: check out the tag and run `tools/build-zip.sh` — the same commit gives the same bytes. Store submission runs in a separate, approval-gated job that installs its one tool from a committed lockfile with install scripts disabled ([`release.yml`](.github/workflows/release.yml)).
 
 ### Auditability
 

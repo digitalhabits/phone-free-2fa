@@ -8,14 +8,41 @@ on:
   # src/manifest.json and creates the v<version> tag automatically.
   workflow_dispatch:
 
+# Default for every job: read-only. Each job below asks for what it needs.
 permissions:
-  contents: write
+  contents: read
+
+# Two jobs, so that no third-party code ever runs next to the store keys
+# without a human approving it:
+#
+#   release  builds and tests the zip and creates the GitHub Release.
+#            No store credentials. Runs only GitHub's own actions.
+#   publish  submits that exact zip to the stores. Runs in the
+#            "store-release" environment, which holds the store credentials
+#            and requires a reviewer to approve each run
+#            (Settings → Environments). The publisher tool is installed from
+#            a committed lockfile with install scripts disabled.
+#
+# Actions are pinned to full commit SHAs (tags can be moved). Dependabot
+# proposes updates — see .github/dependabot.yml.
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the tag and GitHub Release
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      zip_name: ${{ steps.meta.outputs.zip_name }}
+      sha256: ${{ steps.build.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
 
       - name: Determine release version
         id: meta
@@ -37,48 +64,101 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+      # A release is never built from code that fails its tests.
+      - name: Run tests
+        run: npm test
+
+      # Reproducible: the same commit always gives the same bytes, so anyone
+      # can rebuild a tag and compare the SHA-256 (see tools/build-zip.sh).
       - name: Build extension zip
+        id: build
+        env:
+          ZIP_NAME: ${{ steps.meta.outputs.zip_name }}
         run: |
           set -euo pipefail
-          cd src
-          zip -r "../${{ steps.meta.outputs.zip_name }}" . -x "*.DS_Store"
+          tools/build-zip.sh "$ZIP_NAME"
+          sha256sum "$ZIP_NAME" | tee "$ZIP_NAME.sha256"
+          echo "sha256=$(cut -d' ' -f1 "$ZIP_NAME.sha256")" >> "$GITHUB_OUTPUT"
 
       - name: Write release notes
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHA256: ${{ steps.build.outputs.sha256 }}
         run: |
           set -euo pipefail
-          VERSION="${{ steps.meta.outputs.version }}"
-          awk -v ver="$VERSION" '
-            $0 ~ "^## \\[" ver "\\]" { found=1; next }
-            found && /^## \[/ { exit }
-            found { print }
-          ' CHANGELOG.md > /tmp/changelog-section.md
+          tools/changelog-section.sh "$VERSION" > changelog-section.md
 
-          if [ ! -s /tmp/changelog-section.md ]; then
-            echo "No changelog section found for version ${VERSION}." > /tmp/changelog-section.md
+          if [ ! -s changelog-section.md ]; then
+            echo "No changelog section found for version ${VERSION}." > changelog-section.md
           fi
 
           {
-            cat /tmp/changelog-section.md
+            cat changelog-section.md
             echo ""
             echo "---"
             echo ""
             echo "### Install"
             echo "Download \`phone-free-2fa-v${VERSION}.zip\` below for Chrome Web Store, Firefox Add-ons, or sideloading."
             echo ""
-            echo "**Full changelog:** https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md"
+            echo "### Verify"
+            echo "SHA-256 of the zip: \`${SHA256}\`"
+            echo ""
+            echo "This is the exact file submitted to the stores. To rebuild it yourself: check out tag \`v${VERSION}\` and run \`tools/build-zip.sh\`."
+            echo ""
+            echo "**Full changelog:** https://github.com/${GITHUB_REPOSITORY}/blob/main/CHANGELOG.md"
           } > release-notes.md
 
+      # GitHub's own CLI (preinstalled on the runner) instead of a third-party action.
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.meta.outputs.version }}
-          name: "v${{ steps.meta.outputs.version }} — Phone-Free 2FA"
-          body_path: release-notes.md
-          files: ${{ steps.meta.outputs.zip_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          ZIP_NAME: ${{ steps.meta.outputs.zip_name }}
+        run: |
+          set -euo pipefail
+          gh release create "v${VERSION}" "$ZIP_NAME" "$ZIP_NAME.sha256" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "v${VERSION} — Phone-Free 2FA" \
+            --notes-file release-notes.md
 
-      # Submits the zip to the Chrome Web Store and Firefox Add-ons for review.
-      # Skips any store whose credentials are not configured as repo secrets,
-      # so releases keep working before (or without) store automation.
+  # Submits the released zip to the Chrome Web Store and Firefox Add-ons for
+  # review. Waits for a reviewer's approval (environment protection rule).
+  # Skips any store whose credentials are not configured.
+  publish:
+    needs: release
+    runs-on: ubuntu-latest
+    environment: store-release
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      ZIP_NAME: ${{ needs.release.outputs.zip_name }}
+      EXPECTED_SHA256: ${{ needs.release.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # Publish the exact file on the GitHub Release — not a rebuild.
+      - name: Download and verify the released zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "v${VERSION}" --repo "${GITHUB_REPOSITORY}" --pattern "$ZIP_NAME"
+          echo "${EXPECTED_SHA256}  ${ZIP_NAME}" | sha256sum --check --strict
+
+      # Exact versions from the committed lockfile, integrity-checked, and no
+      # package may run code at install time. No store secrets in this step.
+      - name: Install the store publisher
+        working-directory: tools/publish
+        run: npm ci --ignore-scripts
+
       - name: Submit to stores
         env:
           # Chrome Web Store API v2 authenticates with a Google Cloud service
@@ -94,15 +174,14 @@ jobs:
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
         run: |
           set -euo pipefail
-          ZIP="${{ steps.meta.outputs.zip_name }}"
           ARGS=()
           if [ -n "${CHROME_SERVICE_ACCOUNT_PRIVATE_KEY}" ]; then
-            ARGS+=(--chrome-zip "$ZIP")
+            ARGS+=(--chrome-zip "$ZIP_NAME")
           else
             echo "Chrome credentials not configured - skipping Chrome Web Store."
           fi
           if [ -n "${FIREFOX_JWT_SECRET}" ]; then
-            ARGS+=(--firefox-zip "$ZIP")
+            ARGS+=(--firefox-zip "$ZIP_NAME")
           else
             echo "Firefox credentials not configured - skipping Firefox Add-ons."
           fi
@@ -110,7 +189,7 @@ jobs:
             echo "No store credentials configured - skipping submission entirely."
             exit 0
           fi
-          npx publish-browser-extension@5.1.0 "${ARGS[@]}"
+          tools/publish/node_modules/.bin/publish-extension "${ARGS[@]}"
 
       # Copies this version's CHANGELOG.md section onto the AMO version as
       # release notes (publish-browser-extension can't set them). Chrome has
@@ -122,18 +201,18 @@ jobs:
           FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
           FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
           FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
-          VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
           if [ -z "${FIREFOX_JWT_SECRET}" ]; then
             echo "Firefox credentials not configured - skipping release notes."
             exit 0
           fi
+          tools/changelog-section.sh "$VERSION" > changelog-section.md
           node <<'EOF'
           const crypto = require('node:crypto');
           const fs = require('node:fs');
 
-          const notes = fs.readFileSync('/tmp/changelog-section.md', 'utf8').trim();
+          const notes = fs.readFileSync('changelog-section.md', 'utf8').trim();
           if (!notes) {
             console.log('Changelog section is empty - nothing to publish.');
             process.exit(0);

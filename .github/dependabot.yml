@@ -1,0 +1,12 @@
+# Proposes updates to the pinned GitHub Actions and to the store publisher's
+# lockfile as pull requests, so every change to release tooling is reviewed.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: npm
+    directory: /tools/publish
+    schedule:
+      interval: monthly

@@ -12,6 +12,7 @@ import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase,
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { checkPassphraseStrength } from './passphrase-strength.js';
+import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
 
 // ========================================
 // EULA
@@ -1868,24 +1869,8 @@ async function handleExport() {
     }
 
     try {
-        const { generateSalt, deriveKey, encrypt } = await import('./crypto.js');
-        const salt = generateSalt();
-        const exportKey = await deriveKey(pw, salt);
-
-        // Export only essential data: label + secret pairs
-        const essentialData = accounts.map(a => ({
-            label: a.issuer || a.accountName,
-            secret: a.secret,
-        }));
-        const plaintext = JSON.stringify(essentialData);
-        const encrypted = await encrypt(plaintext, exportKey);
-
-        const exportData = {
-            format: 'redd-2fa-backup',
-            version: 2,
-            salt,
-            ...encrypted,
-        };
+        // Full account parameters are kept — see backup.js for the format.
+        const exportData = await createBackup(accounts, pw);
 
         downloadFile(
             JSON.stringify(exportData, null, 2),
@@ -1936,36 +1921,24 @@ async function handleImport() {
             // Encrypted backup
             const data = JSON.parse(text);
 
-            if (data.format === 'redd-2fa-backup') {
+            if (isEncryptedBackup(data)) {
                 const pw = importPassword.value;
                 if (!pw) {
                     showElement(importError, 'Please enter the backup password.');
                     return;
                 }
-                const { deriveKey: dk, decrypt: dec } = await import('./crypto.js');
-                const importKey = await dk(pw, data.salt);
+                let restored;
                 try {
-                    const plaintext = await dec(data.iv, data.ciphertext, importKey);
-                    let imported = JSON.parse(plaintext);
-
-                    // v2 format: convert label+secret pairs to full account objects
-                    if (data.version >= 2) {
-                        imported = imported.map(item => ({
-                            id: generateId(),
-                            issuer: item.label,
-                            accountName: item.label,
-                            secret: item.secret,
-                            algorithm: 'SHA1',
-                            digits: 6,
-                            period: 30,
-                        }));
-                    }
-
-                    await importMerge(imported, key);
-                } catch {
-                    showElement(importError, 'Wrong password or corrupted backup.');
+                    restored = await readBackup(data, pw);
+                } catch (err) {
+                    const messages = {
+                        'wrong-password': 'Wrong password or corrupted backup.',
+                        'too-new': 'This backup was made by a newer version of Phone-Free 2FA. Please update the extension first.',
+                    };
+                    showElement(importError, messages[err?.code] || 'Invalid backup file format.');
                     return;
                 }
+                await importMerge(restored.map(a => ({ id: generateId(), ...a })), key);
             } else {
                 // Try as plain account array
                 const imported = data;

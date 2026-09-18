@@ -136,6 +136,8 @@ src/
 ├── crypto.js           # Encryption/decryption (AES-GCM, PBKDF2)
 ├── totp.js             # TOTP engine (Base32, HMAC, RFC 6238)
 ├── storage.js          # Encrypted storage manager + backup fingerprinting
+├── backup.js           # Encrypted backup file format (create / read)
+├── accounts.js         # Account objects: edit form, import validation
 ├── session.js          # In-memory session & auto-lock
 ├── biometric.js        # WebAuthn biometric unlock (PRF hardware integration)
 ├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
@@ -156,7 +158,7 @@ tools/publish/          # Store publisher, pinned by lockfile — release-time o
 npm test
 ```
 
-Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, and the encrypted storage manager. What needs a real browser is checked by hand.
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, the encrypted storage manager, and backup round-trips for every algorithm / digits / period. What needs a real browser is checked by hand.
 
 ### Verifying a release
 

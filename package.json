@@ -1,0 +1,9 @@
+{
+    "name": "phone-free-2fa",
+    "private": true,
+    "description": "Development-only manifest: runs the test suite. Not part of the shipped extension (only src/ is zipped). Deliberately has no dependencies.",
+    "type": "module",
+    "scripts": {
+        "test": "node --test"
+    }
+}

@@ -69,8 +69,59 @@ test('backup status: never → current → stale', async () => {
 
     await storage.saveBackupFingerprint(ACCOUNTS);
     assert.equal(await storage.getBackupStatus(ACCOUNTS), 'current');
+    assert.equal(await storage.getBackupStatus([...ACCOUNTS].reverse()), 'current', 'order does not matter');
+    assert.equal(await storage.getBackupStatus(ACCOUNTS.map(a => ({ ...a, id: 'x' + a.id }))), 'current', 'ids do not matter');
 
-    const changed = [...ACCOUNTS, { ...ACCOUNTS[0], id: 'a3', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
+    const added = [...ACCOUNTS, { ...ACCOUNTS[0], id: 'a3', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
+    assert.equal(await storage.getBackupStatus(added), 'stale');
+});
+
+test('backup status: a change to any backed-up field makes the backup stale', async () => {
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const changes = { issuer: 'Other', accountName: 'bob', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF', algorithm: 'SHA512', digits: 8, period: 45 };
+    for (const [field, value] of Object.entries(changes)) {
+        const changed = [{ ...ACCOUNTS[0], [field]: value }, ACCOUNTS[1]];
+        assert.equal(await storage.getBackupStatus(changed), 'stale', field);
+    }
+});
+
+test('backup fingerprint is salted: same accounts, different stored value each time', async () => {
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const first = fake.dump().redd2fa_backup_fingerprint;
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const second = fake.dump().redd2fa_backup_fingerprint;
+    assert.equal(first.version, 2);
+    assert.notEqual(first.salt, second.salt);
+    assert.notEqual(first.hash, second.hash);
+});
+
+/** The unsalted label + secret fingerprint exactly as 2.7 computed it. */
+async function fingerprintAsOf27(accounts) {
+    const essential = accounts
+        .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
+        .sort((a, b) => a.label.localeCompare(b.label) || a.secret.localeCompare(b.secret));
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(essential)));
+    return Buffer.from(hash).toString('hex');
+}
+
+test('upgrade from 2.7: backup of default-parameter accounts stays current and is re-salted', async () => {
+    const defaults = [ACCOUNTS[0]];
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27(defaults) });
+
+    assert.equal(await storage.getBackupStatus(defaults), 'current');
+    const stored = fake.dump().redd2fa_backup_fingerprint;
+    assert.equal(typeof stored, 'object', 'unsalted value was replaced');
+    assert.equal(await storage.getBackupStatus(defaults), 'current');
+});
+
+test('upgrade from 2.7: a v2 backup could not hold non-default accounts, so it is stale', async () => {
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27(ACCOUNTS) });
+    assert.equal(await storage.getBackupStatus(ACCOUNTS), 'stale'); // ACCOUNTS[1] is SHA256 / 8 / 60
+});
+
+test('upgrade from 2.7: accounts changed since the old backup → stale', async () => {
+    await browser.storage.local.set({ redd2fa_backup_fingerprint: await fingerprintAsOf27([ACCOUNTS[0]]) });
+    const changed = [{ ...ACCOUNTS[0], secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
     assert.equal(await storage.getBackupStatus(changed), 'stale');
 });
 

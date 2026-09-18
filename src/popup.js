@@ -1089,13 +1089,10 @@ function initBiometricMessaging() {
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!message?.type) return;
         // Defence in depth: only honour messages from our currently-tracked tab.
-        if (!isTrustedBiometricSender(sender)) {
-            if (message.type === 'biometric-setup-request-passphrase') {
-                sendResponse({ error: 'unauthorized' });
-                return false;
-            }
-            return;
-        }
+        // Stay silent rather than answering 'unauthorized': with the panel open
+        // in two windows, the first response wins, and a refusal from the
+        // panel that didn't open the tab would beat the real answer.
+        if (!isTrustedBiometricSender(sender)) return;
 
         switch (message.type) {
             case 'biometric-setup-request-passphrase':
@@ -1251,7 +1248,7 @@ function initBiometricListeners() {
 
     $('biometric-enable-btn').addEventListener('click', async () => {
         if (!pendingPassphrase) {
-            const entered = $('biometric-setup-passphrase').value.trim();
+            const entered = $('biometric-setup-passphrase').value;
             if (!entered) return;
             const key = await unlockWithPassphrase(entered);
             if (!key) {
@@ -1282,8 +1279,9 @@ function initBiometricListeners() {
         if ($('biometric-dont-ask-checkbox').checked) {
             await browser.storage.local.set({ redd2fa_biometric_dont_ask: true });
         }
-        // Keep pendingPassphrase for this session so settings can enable Touch ID
-        // without another unlock. It is cleared on lock via wipeSensitiveState().
+        // Don't keep the master passphrase in memory once the offer is declined.
+        // Enabling Touch ID from Settings later asks for it again.
+        pendingPassphrase = null;
         if (pendingPassphraseTimer) { clearTimeout(pendingPassphraseTimer); pendingPassphraseTimer = null; }
         biometricPromptOverlay.style.display = 'none';
     });

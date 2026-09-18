@@ -21,3 +21,5 @@ jobs:
           node-version: 24
       # No install step: the test suite has no dependencies.
       - run: npm test
+      - name: Build the zip (checks the build script still works)
+        run: tools/build-zip.sh

@@ -222,29 +222,49 @@ export async function hasData() {
     return !!(result[STORAGE_KEY_META] && result[STORAGE_KEY_DATA]);
 }
 
+// ----------------------------------------
+// Backup fingerprint
+//
+// Lets the UI say "your backup is out of date" without keeping the backup.
+// Stored outside the encrypted blob as { version, salt, hash }, where
+// hash = SHA-256(salt + canonical account list). The random salt means the
+// stored value cannot be tested against guessed labels or secrets.
+//
+// It has to cover the TOTP parameters, not just label and secret: with
+// backup format v3 an account's algorithm, digits or period is part of what
+// a backup holds, so changing one makes the last backup out of date.
+// ----------------------------------------
+const FINGERPRINT_VERSION = 2;
+
+async function sha256Hex(text) {
+    const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 /**
- * Compute a fingerprint of the accounts array for backup staleness detection.
- * Only considers label + secret (the essential data), ignoring internal fields.
- * Returns a hex-encoded SHA-256 hash.
+ * Fingerprint of everything a backup holds: labels, secret and the TOTP
+ * parameters. Order-independent; ignores internal ids.
  */
-export async function computeAccountsFingerprint(accounts) {
+export async function computeAccountsFingerprint(accounts, salt) {
     if (!accounts || accounts.length === 0) return null;
-    const essential = accounts
-        .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
-        .sort((a, b) => a.label.localeCompare(b.label) || a.secret.localeCompare(b.secret));
-    const json = JSON.stringify(essential);
-    const encoded = new TextEncoder().encode(json);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const rows = accounts
+        .map(a => JSON.stringify([
+            a.issuer ?? '', a.accountName ?? '', a.secret,
+            a.algorithm ?? 'SHA1', a.digits ?? 6, a.period ?? 30,
+        ]))
+        .sort();
+    return sha256Hex(salt + JSON.stringify(rows));
 }
 
 /**
  * Save the current accounts fingerprint as the "last backed-up" state.
  */
 export async function saveBackupFingerprint(accounts) {
-    const fingerprint = await computeAccountsFingerprint(accounts);
-    await browser.storage.local.set({ [STORAGE_KEY_BACKUP_FINGERPRINT]: fingerprint });
+    const salt = generateSalt();
+    const hash = await computeAccountsFingerprint(accounts, salt);
+    await browser.storage.local.set({
+        [STORAGE_KEY_BACKUP_FINGERPRINT]: hash ? { version: FINGERPRINT_VERSION, salt, hash } : null,
+    });
 }
 
 /**
@@ -288,8 +308,13 @@ export async function clearLockoutState() {
 export async function getBackupStatus(accounts) {
     if (!accounts || accounts.length === 0) return 'current'; // nothing to back up
     const result = await browser.storage.local.get(STORAGE_KEY_BACKUP_FINGERPRINT);
-    const savedFingerprint = result[STORAGE_KEY_BACKUP_FINGERPRINT];
-    if (!savedFingerprint) return 'never';
-    const currentFingerprint = await computeAccountsFingerprint(accounts);
-    return currentFingerprint !== savedFingerprint ? 'stale' : 'current';
+    const saved = result[STORAGE_KEY_BACKUP_FINGERPRINT];
+    if (!saved) return 'never';
+    // Anything not in the current format was written by 2.8 or earlier, whose
+    // backups held label + secret only and so could be missing this account's
+    // TOTP parameters. Ask for one fresh backup rather than keeping a
+    // compatibility path that can only ever be wrong in the user's favour.
+    if (saved.version !== FINGERPRINT_VERSION || typeof saved.salt !== 'string') return 'stale';
+    const current = await computeAccountsFingerprint(accounts, saved.salt);
+    return current === saved.hash ? 'current' : 'stale';
 }

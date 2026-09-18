@@ -141,6 +141,15 @@ test('malformed files → invalid', async () => {
     }
 });
 
+test('one invalid account refuses the whole backup (no partial restores)', async () => {
+    const good = { issuer: 'A', accountName: 'a', secret: 'JBSWY3DPEHPK3PXP', algorithm: 'SHA1', digits: 6, period: 30 };
+    for (const bad of [{ ...good, digits: 7 }, { ...good, secret: 42 }, { ...good, algorithm: 'MD5' }, { ...good, issuer: {} }]) {
+        const file = await legacyBackup(3, [good, bad]);
+        await assert.rejects(() => readBackup(file, PASSWORD), { code: 'invalid' }, JSON.stringify(bad));
+    }
+    await assert.rejects(async () => readBackup(await legacyBackup(2, [{ label: 'x', secret: null }]), PASSWORD), { code: 'invalid' });
+});
+
 test('isEncryptedBackup', async () => {
     assert.equal(isEncryptedBackup(await createBackup([], PASSWORD)), true);
     assert.equal(isEncryptedBackup([{ issuer: 'x' }]), false);

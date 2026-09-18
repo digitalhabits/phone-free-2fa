@@ -17,6 +17,7 @@
  */
 
 import { generateSalt, deriveKey, encrypt, decrypt } from './crypto.js';
+import { cleanImportedAccount } from './accounts.js';
 
 export const BACKUP_FORMAT = 'redd-2fa-backup';
 export const BACKUP_VERSION = 3;
@@ -105,26 +106,17 @@ export async function readBackup(data, password) {
 }
 
 /**
- * Convert one decrypted entry to an account. Defaults are applied only to
- * fields that are genuinely absent — a value that is present is never
- * overwritten.
+ * Convert one decrypted entry to a checked account. One bad entry refuses
+ * the whole backup: a partial restore that looks complete is worse than none.
  */
 function accountFromEntry(entry, version) {
-    if (!entry || typeof entry !== 'object') {
-        throw new BackupError('invalid', 'Backup contains an entry that is not an account.');
-    }
-
     // v2 stored a single label and nothing else about the account.
-    const source = version === 2
+    const source = version === 2 && entry && typeof entry === 'object'
         ? { issuer: entry.label, accountName: entry.label, secret: entry.secret }
         : entry;
-
-    return {
-        issuer: source.issuer ?? '',
-        accountName: source.accountName ?? '',
-        secret: source.secret,
-        algorithm: source.algorithm ?? 'SHA1',
-        digits: source.digits ?? 6,
-        period: source.period ?? 30,
-    };
+    try {
+        return cleanImportedAccount(source);
+    } catch (err) {
+        throw new BackupError('invalid', `Backup contains an invalid account: ${err.message}`);
+    }
 }

@@ -144,7 +144,17 @@ src/
 ├── passphrase-strength.js  # Hand-rolled strength check (~190 lines)
 ├── step1-3.png         # In-app setup instruction images
 └── icons/              # Extension icons
+
+tests/                  # node --test, no dependencies — never shipped
 ```
+
+### Tests
+
+```bash
+npm test
+```
+
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, and the encrypted storage manager. What needs a real browser is checked by hand.
 
 ### Auditability
 

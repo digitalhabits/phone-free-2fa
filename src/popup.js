@@ -156,7 +156,10 @@ function flashCopyButton(btn) {
 }
 
 function setBackupBadgeLabel(badge, text) {
-    badge.innerHTML = `${WARNING_TRIANGLE_ICON}<span>${text}</span>`;
+    badge.innerHTML = WARNING_TRIANGLE_ICON;
+    const label = document.createElement('span');
+    label.textContent = text;
+    badge.appendChild(label);
 }
 
 function setFooterVisible(visible) {

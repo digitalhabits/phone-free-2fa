@@ -14,8 +14,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ### Security
 - **Strong encryption** — AES-256-GCM via Web Crypto API with PBKDF2 key derivation (600,000 iterations, SHA-256)
-- **Local-only** — never makes network requests; all data stays on your device
-- **Minimal permissions** — only requests `storage`, `tabs`, and `sidePanel`; no host permissions, no remote code
+- **Local-only** — never makes network requests; all data stays on your device. The browser enforces this: the manifest's Content Security Policy sets `connect-src 'none'`
+- **Minimal permissions** — only requests `storage` and `sidePanel`; no host permissions, no remote code
 - **Master passphrase** — all account data encrypted at rest; decrypted only while unlocked
 - **Passphrase never stored** — only a derived verification token is persisted
 - **Memory safety** — encryption key, decrypted TOTP secrets, and in-flight modal inputs (passphrases, secrets) are all wiped from memory on lock or when the side panel is closed

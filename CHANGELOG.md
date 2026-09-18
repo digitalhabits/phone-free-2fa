@@ -28,6 +28,8 @@ Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07
 
 ### Security
 
+- **Removed the `tabs` permission.** It was never needed (opening and closing the Touch ID tab works without it), and it caused the "read your browsing history" install warning. The extension now asks for `storage` and `sidePanel` only.
+- **Network access is now blocked by the browser, not just by us.** An explicit Content Security Policy sets `connect-src 'none'` and allows scripts only from the extension package. Guard tests fail if a network API, remote resource, or extra permission is ever added. (`src/manifest.json`, `tests/no-network.test.js`)
 - **Closing the panel during Touch ID setup could leave the vault unlocked.** Locking is paused while the Touch ID tab is open, but nothing resumed it if the panel was closed in the meantime — with auto-lock set to "Never", the vault stayed open indefinitely. The vault now locks as soon as the Touch ID tab finishes or closes with the panel hidden, after 2 minutes hidden regardless, and a key is never installed into a panel that was closed while it was being derived. (`src/lock-policy.js`, `tests/lock-policy.test.js`)
 - Clicking "Not now" on the Touch ID offer now clears the master passphrase from memory straight away, instead of keeping it until lock. Enabling Touch ID from Settings asks for it again.
 - Backup passwords now have to pass the same strength rules as the master passphrase (they only had a 12-character minimum). A backup file can be copied and attacked offline, so its password matters at least as much. Setup, change-passphrase and export share one rule set. (`validateNewPassphrase` in `src/passphrase-strength.js`, `tests/passphrase-policy.test.js`)

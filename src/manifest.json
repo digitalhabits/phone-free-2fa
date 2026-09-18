@@ -36,9 +36,11 @@
     },
     "permissions": [
         "storage",
-        "tabs",
         "sidePanel"
     ],
+    "content_security_policy": {
+        "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; connect-src 'none'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    },
     "browser_specific_settings": {
         "gecko": {
             "id": "redd-2fa@reddfocus.org",

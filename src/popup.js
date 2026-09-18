@@ -14,6 +14,7 @@ import { isBiometricAvailable, registerBiometric, authenticateBiometric } from '
 import { validateNewPassphrase, MIN_PASSPHRASE_LENGTH } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
 import { accountFromForm, accountLabel } from './accounts.js';
+import { createHideLockPolicy } from './lock-policy.js';
 
 // ========================================
 // EULA
@@ -639,12 +640,13 @@ function initEventListeners() {
 
     // Chrome side panels often keep this document alive when "closed".
     // Lock + wipe on hide so the AES key and decrypted secrets do not
-    // linger in memory. Skip while a biometric tab owns the ceremony —
-    // that flow takes focus away from the panel and needs pending state.
+    // linger in memory. The rules, including the bounded exception while a
+    // Touch ID tab is open, are in lock-policy.js.
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') lockOnPanelHide();
+        if (document.visibilityState === 'hidden') onPanelHide();
+        else hideLockPolicy.onShow();
     });
-    window.addEventListener('pagehide', lockOnPanelHide);
+    window.addEventListener('pagehide', onPanelHide);
 
     // Open external links in a new tab. The rel="noopener noreferrer" on the
     // <a> doesn't carry through when we intercept the click and call
@@ -733,9 +735,10 @@ async function handleSetup() {
         updateAllVisibilityToggles();
         showScreen('main');
         renderAccounts();
+        hideLockPolicy.onUnlocked(); // re-locks if the panel was closed meanwhile
 
         // Offer biometric setup after first passphrase creation
-        await promptBiometricSetup(passphrase);
+        if (isUnlocked()) await promptBiometricSetup(passphrase);
     } catch (err) {
         showElement(setupError, 'Setup failed. Please try again.');
         setupBtn.disabled = false;
@@ -801,10 +804,11 @@ async function handleUnlock() {
         hideElement(unlockError);
         showScreen('main');
         renderAccounts();
+        hideLockPolicy.onUnlocked(); // re-locks if the panel was closed meanwhile
 
         // Offer biometric setup if not already configured
         const existingBiometric = await loadBiometricData();
-        if (!existingBiometric) {
+        if (!existingBiometric && isUnlocked()) {
             await promptBiometricSetup(passphrase);
         }
     } catch (err) {
@@ -958,6 +962,7 @@ async function handleBiometricUnlock() {
         hideElement(biometricError);
         showScreen('main');
         renderAccounts();
+        hideLockPolicy.onUnlocked();
     } catch (err) {
         showElement(biometricError, 'Touch ID failed. Try again or use your passphrase.');
     } finally {
@@ -1055,6 +1060,8 @@ function clearBiometricTab() {
         biometricTabRemoveListener = null;
     }
     biometricTab = null;
+    // The ceremony is over: if the panel was closed meanwhile, lock now.
+    hideLockPolicy.onCeremonyEnd();
 }
 
 function handleBiometricTabClosedUnexpectedly() {
@@ -1089,13 +1096,10 @@ function initBiometricMessaging() {
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!message?.type) return;
         // Defence in depth: only honour messages from our currently-tracked tab.
-        if (!isTrustedBiometricSender(sender)) {
-            if (message.type === 'biometric-setup-request-passphrase') {
-                sendResponse({ error: 'unauthorized' });
-                return false;
-            }
-            return;
-        }
+        // Stay silent rather than answering 'unauthorized': with the panel open
+        // in two windows, the first response wins, and a refusal from the
+        // panel that didn't open the tab would beat the real answer.
+        if (!isTrustedBiometricSender(sender)) return;
 
         switch (message.type) {
             case 'biometric-setup-request-passphrase':
@@ -1157,6 +1161,7 @@ async function handleBiometricUnlockResult(message) {
         hideElement(biometricError);
         showScreen('main');
         renderAccounts();
+        hideLockPolicy.onUnlocked();
     } catch {
         showElement(biometricError, 'Failed to unlock. Please try again.');
     }
@@ -1251,7 +1256,7 @@ function initBiometricListeners() {
 
     $('biometric-enable-btn').addEventListener('click', async () => {
         if (!pendingPassphrase) {
-            const entered = $('biometric-setup-passphrase').value.trim();
+            const entered = $('biometric-setup-passphrase').value;
             if (!entered) return;
             const key = await unlockWithPassphrase(entered);
             if (!key) {
@@ -1282,8 +1287,9 @@ function initBiometricListeners() {
         if ($('biometric-dont-ask-checkbox').checked) {
             await browser.storage.local.set({ redd2fa_biometric_dont_ask: true });
         }
-        // Keep pendingPassphrase for this session so settings can enable Touch ID
-        // without another unlock. It is cleared on lock via wipeSensitiveState().
+        // Don't keep the master passphrase in memory once the offer is declined.
+        // Enabling Touch ID from Settings later asks for it again.
+        pendingPassphrase = null;
         if (pendingPassphraseTimer) { clearTimeout(pendingPassphraseTimer); pendingPassphraseTimer = null; }
         biometricPromptOverlay.style.display = 'none';
     });
@@ -1781,6 +1787,7 @@ async function handleChangePassphrase() {
     try {
         const newKey = await changePassphrase(accounts, newPw);
         setSessionKey(newKey);
+        hideLockPolicy.onUnlocked(); // re-locks if the panel was closed meanwhile
 
         // Clear biometric data — it wraps the old passphrase
         await clearBiometricData();
@@ -1973,23 +1980,26 @@ async function importMerge(imported, key) {
 // ========================================
 
 /**
- * Lock when the side panel is hidden/closed. Chrome often keeps the
- * document alive after close, so visibility/pagehide is the signal we get.
- * Skip during an in-flight biometric tab ceremony (it steals focus).
+ * Lock the session and wipe every piece of decrypted state.
  */
-function lockOnPanelHide() {
-    if (biometricTab) {
-        flushClipboardClear();
-        return;
-    }
-    if (!isUnlocked()) {
-        flushClipboardClear();
-        return;
-    }
+function lockNow() {
     lock();
     wipeSensitiveState();
     showScreen('lock');
     setupLockScreen();
+}
+
+/** When to lock because the panel was hidden/closed — see lock-policy.js. */
+const hideLockPolicy = createHideLockPolicy({
+    isHidden: () => document.visibilityState === 'hidden',
+    isUnlocked,
+    isCeremonyActive: () => biometricTab !== null,
+    lockNow,
+});
+
+function onPanelHide() {
+    flushClipboardClear();
+    hideLockPolicy.onHide();
 }
 
 /**

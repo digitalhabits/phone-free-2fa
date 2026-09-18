@@ -23,9 +23,13 @@ Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07
 - **Encrypted backups lost account settings.** Backups stored only a label and secret, so accounts that don't use the default SHA-1 / 6 digits / 30 seconds generated wrong codes after a restore. Backups now keep every setting (format v3). Older backup files still import. If you have such an account, the app will ask you to make a new backup. (`src/backup.js`, `tests/backup.test.js`)
 - **Editing an account reset its settings.** Renaming an account that doesn't use the defaults silently switched it back to SHA-1 / 6 digits / 30 seconds. (`src/accounts.js`, `tests/accounts.test.js`)
 - **Changing the passphrase could lock the vault for good.** The new passphrase check and the re-encrypted accounts were saved in two steps; a crash between them left a vault that neither passphrase could open. Both are now saved in a single all-or-nothing write, after checking the re-encrypted vault opens. (`src/storage.js`, `tests/storage.test.js`)
+- Touch ID setup could fail when the panel was open in two windows.
+- Enabling Touch ID from Settings no longer strips spaces from the ends of the passphrase you type.
 
 ### Security
 
+- **Closing the panel during Touch ID setup could leave the vault unlocked.** Locking is paused while the Touch ID tab is open, but nothing resumed it if the panel was closed in the meantime — with auto-lock set to "Never", the vault stayed open indefinitely. The vault now locks as soon as the Touch ID tab finishes or closes with the panel hidden, after 2 minutes hidden regardless, and a key is never installed into a panel that was closed while it was being derived. (`src/lock-policy.js`, `tests/lock-policy.test.js`)
+- Clicking "Not now" on the Touch ID offer now clears the master passphrase from memory straight away, instead of keeping it until lock. Enabling Touch ID from Settings asks for it again.
 - Backup passwords now have to pass the same strength rules as the master passphrase (they only had a 12-character minimum). A backup file can be copied and attacked offline, so its password matters at least as much. Setup, change-passphrase and export share one rule set. (`validateNewPassphrase` in `src/passphrase-strength.js`, `tests/passphrase-policy.test.js`)
 - The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. (`src/storage.js`)
 

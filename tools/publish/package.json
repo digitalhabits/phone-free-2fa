@@ -3,6 +3,6 @@
     "private": true,
     "description": "Release-time only: the store publisher used by .github/workflows/release.yml. Pinned exactly, with a committed lockfile, and installed with `npm ci --ignore-scripts`. Nothing here ships in the extension.",
     "dependencies": {
-        "publish-browser-extension": "5.1.0"
+        "publish-browser-extension": "6.1.1"
     }
 }

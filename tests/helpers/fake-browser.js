@@ -10,7 +10,26 @@
  * that point, so tests can check what state is left behind.
  */
 
+/**
+ * Browsers have the Web Locks API; older Node versions don't. Give those a
+ * minimal one (a queue per lock name) so tests see what a browser does.
+ */
+function ensureWebLocks() {
+    if (globalThis.navigator?.locks?.request) return;
+    const queues = new Map();
+    const locks = {
+        request(name, callback) {
+            const run = (queues.get(name) || Promise.resolve()).then(() => callback());
+            queues.set(name, run.catch(() => { }));
+            return run;
+        },
+    };
+    if (globalThis.navigator) Object.defineProperty(globalThis.navigator, 'locks', { value: locks, configurable: true });
+    else globalThis.navigator = { locks };
+}
+
 export function installFakeBrowser() {
+    ensureWebLocks();
     let data = {};
     let setCalls = 0;
     let failAt = null;

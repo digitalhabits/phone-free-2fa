@@ -8,8 +8,8 @@
 
 import browser from './browser.js';
 import { generateTOTP, getRemainingSeconds, buildOtpauthURI, validateBase32 } from './totp.js';
-import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState } from './storage.js';
-import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
+import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState, StaleVaultError } from './storage.js';
+import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback, captureLockEpoch, isLockEpochCurrent } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { validateNewPassphrase, MIN_PASSPHRASE_LENGTH } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
@@ -725,8 +725,10 @@ async function handleSetup() {
     setupBtn.disabled = true;
     setupBtn.textContent = 'Setting up...';
 
+    const epoch = captureLockEpoch();
     try {
         const key = await setupPassphrase(passphrase);
+        if (!isLockEpochCurrent(epoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
         accounts = [];
@@ -741,7 +743,7 @@ async function handleSetup() {
         hideLockPolicy.onUnlocked(); // re-locks if the panel was closed meanwhile
 
         // Offer biometric setup after first passphrase creation
-        if (isUnlocked()) await promptBiometricSetup(passphrase);
+        if (isLockEpochCurrent(epoch)) await promptBiometricSetup(passphrase, epoch);
     } catch (err) {
         showElement(setupError, 'Setup failed. Please try again.');
         setupBtn.disabled = false;
@@ -758,6 +760,9 @@ let failedAttempts = 0;
 let lockoutUntil = 0;
 
 async function handleUnlock() {
+    // If the panel locks while this is waiting (see session.js, lock epoch),
+    // stop: finishing would put the key and accounts back into a wiped panel.
+    const epoch = captureLockEpoch();
     const passphrase = unlockPassphraseInput.value;
     if (!passphrase) return;
 
@@ -774,6 +779,7 @@ async function handleUnlock() {
 
     try {
         const key = await unlockWithPassphrase(passphrase);
+        if (!isLockEpochCurrent(epoch)) return;
         if (!key) {
             failedAttempts++;
             // Progressive lockout: 5s after 5 failures, 30s after 10, 5min after 15
@@ -795,13 +801,16 @@ async function handleUnlock() {
             return;
         }
 
-        // Success — reset counter
+        // Success — reset counter. Read the vault before publishing the key,
+        // so a lock in between leaves nothing behind.
         failedAttempts = 0;
         lockoutUntil = 0;
         await clearLockoutState();
+        const loaded = await loadAccounts(key);
+        if (!isLockEpochCurrent(epoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loaded;
         unlockPassphraseInput.value = '';
         updateAllVisibilityToggles();
         hideElement(unlockError);
@@ -811,15 +820,15 @@ async function handleUnlock() {
 
         // Offer biometric setup if not already configured
         const existingBiometric = await loadBiometricData();
-        if (!existingBiometric && isUnlocked()) {
-            await promptBiometricSetup(passphrase);
+        if (!existingBiometric && isLockEpochCurrent(epoch)) {
+            await promptBiometricSetup(passphrase, epoch);
         }
     } catch (err) {
-        showElement(unlockError, 'Failed to unlock. Please try again.');
+        if (isLockEpochCurrent(epoch)) showElement(unlockError, 'Failed to unlock. Please try again.');
+    } finally {
+        unlockBtn.disabled = false;
+        unlockBtn.textContent = 'Unlock';
     }
-
-    unlockBtn.disabled = false;
-    unlockBtn.textContent = 'Unlock';
 }
 
 // ========================================
@@ -873,7 +882,7 @@ function showBiometricSetupFromSettings() {
     biometricPromptOverlay.style.display = 'flex';
 }
 
-async function promptBiometricSetup(passphrase) {
+async function promptBiometricSetup(passphrase, epoch = captureLockEpoch()) {
     try {
         const available = await isBiometricAvailable();
         if (!available) return;
@@ -881,6 +890,9 @@ async function promptBiometricSetup(passphrase) {
         // Check if user dismissed the prompt permanently
         const { redd2fa_biometric_dont_ask } = await browser.storage.local.get('redd2fa_biometric_dont_ask');
         if (redd2fa_biometric_dont_ask) return;
+
+        // Locked while we were checking: don't hold the passphrase for a locked panel.
+        if (!isLockEpochCurrent(epoch)) return;
 
         pendingPassphrase = passphrase;
         resetBiometricPromptUI({ showPassphraseField: false, showDontAsk: true });
@@ -944,12 +956,13 @@ async function handleBiometricUnlock() {
         biometricUnlockBtn.disabled = true;
         hideElement(biometricError);
 
+        const epoch = captureLockEpoch();
         const biometricData = await loadBiometricData();
         if (!biometricData) return;
 
-
         const passphrase = await authenticateBiometric(biometricData);
         const key = await unlockWithPassphrase(passphrase);
+        if (!isLockEpochCurrent(epoch)) return;
         if (!key) {
             showElement(biometricError, 'Biometric data outdated. Please use your passphrase.');
             return;
@@ -959,9 +972,11 @@ async function handleBiometricUnlock() {
         failedAttempts = 0;
         lockoutUntil = 0;
         await clearLockoutState();
+        const loaded = await loadAccounts(key);
+        if (!isLockEpochCurrent(epoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loaded;
         hideElement(biometricError);
         showScreen('main');
         renderAccounts();
@@ -1046,7 +1061,7 @@ async function openBiometricTab(mode) {
     }
     const url = browser.runtime.getURL(`biometric-tab.html?mode=${mode}`);
     const tab = await browser.tabs.create({ url, active: true });
-    biometricTab = { id: tab.id, mode };
+    biometricTab = { id: tab.id, mode, epoch: captureLockEpoch() };
     biometricTabRemoveListener = (closedId) => {
         if (biometricTab && closedId === biometricTab.id) {
             handleBiometricTabClosedUnexpectedly();
@@ -1130,15 +1145,17 @@ function initBiometricMessaging() {
                 return;
 
             case 'biometric-unlock-result':
-                handleBiometricUnlockResult(message);
+                handleBiometricUnlockResult(message, biometricTab.epoch);
                 return;
         }
     });
 }
 
-async function handleBiometricUnlockResult(message) {
+async function handleBiometricUnlockResult(message, epoch) {
     clearBiometricTab();
     biometricUnlockBtn.disabled = false;
+    // The panel locked again after this Touch ID tab was opened: ignore its result.
+    if (!isLockEpochCurrent(epoch)) return;
 
     if (message.error) {
         showElement(biometricError, message.error);
@@ -1151,6 +1168,7 @@ async function handleBiometricUnlockResult(message) {
 
     try {
         const key = await unlockWithPassphrase(message.passphrase);
+        if (!isLockEpochCurrent(epoch)) return;
         if (!key) {
             showElement(biometricError, 'Biometric data outdated. Please use your passphrase.');
             return;
@@ -1158,9 +1176,11 @@ async function handleBiometricUnlockResult(message) {
         failedAttempts = 0;
         lockoutUntil = 0;
         await clearLockoutState();
+        const loaded = await loadAccounts(key);
+        if (!isLockEpochCurrent(epoch)) return;
         setSessionKey(key);
         setAutoLockMinutes(settings.autoLockMinutes);
-        accounts = await loadAccounts(key);
+        accounts = loaded;
         hideElement(biometricError);
         showScreen('main');
         renderAccounts();
@@ -1354,9 +1374,11 @@ async function renderAccounts() {
     emptyState.style.display = 'none';
 
     // Generate all codes in parallel (async Web Crypto)
+    const epoch = captureLockEpoch();
     const codes = await Promise.all(
         filtered.map(a => generateTOTP(a.secret, a.digits, a.period, a.algorithm))
     );
+    if (!isLockEpochCurrent(epoch)) return; // locked meanwhile: render nothing
 
     const fragment = document.createDocumentFragment();
     const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -1547,7 +1569,9 @@ async function updateCodes() {
         if (lastCounters.get(account.id) === counter) continue;
         lastCounters.set(account.id, counter);
 
+        const epoch = captureLockEpoch();
         const code = await generateTOTP(account.secret, account.digits || 6, period, account.algorithm || 'SHA1');
+        if (!isLockEpochCurrent(epoch)) return;
         el.textContent = formatCode(code);
     }
 }
@@ -1695,19 +1719,21 @@ async function handleSaveAccount() {
     const existing = editingAccountId ? accounts.find(a => a.id === editingAccountId) : null;
     const account = accountFromForm(existing || null, { id: generateId(), label, secret });
 
-    // Save
-    if (editingAccountId) {
-        const idx = accounts.findIndex(a => a.id === editingAccountId);
-        if (idx >= 0) accounts[idx] = account;
-    } else {
-        accounts.push(account);
-    }
+    const isEditing = Boolean(existing);
+    const next = isEditing
+        ? accounts.map(a => (a.id === existing.id ? account : a))
+        : [...accounts, account];
 
-    await saveAccounts(accounts, key);
+    try {
+        if (!await persistAccounts(next)) return;
+    } catch {
+        showElement(modalError, 'Could not save. Please try again.');
+        return;
+    }
     closeAccountModal();
     renderAccounts();
     updateTopBarBackupBadge();
-    showToast(editingAccountId ? 'Account updated' : 'Account added');
+    showToast(isEditing ? 'Account updated' : 'Account added');
 }
 
 // ========================================
@@ -1732,8 +1758,12 @@ async function handleDeleteAccount() {
     const key = getSessionKey();
     if (!key) return;
 
-    accounts = accounts.filter(a => a.id !== deletingAccountId);
-    await saveAccounts(accounts, key);
+    try {
+        if (!await persistAccounts(accounts.filter(a => a.id !== deletingAccountId))) return;
+    } catch {
+        showToast('Could not delete. Please try again.');
+        return;
+    }
     deleteModalOverlay.style.display = 'none';
     deletingAccountId = null;
     renderAccounts();
@@ -1758,6 +1788,12 @@ function closeChangePassphraseModal() {
 }
 
 async function handleChangePassphrase() {
+    // Checking the current passphrase takes a moment. If the panel locks in
+    // that time, `accounts` is wiped — re-encrypting it would save an EMPTY
+    // vault under the new passphrase. So: work from a snapshot, and stop if a
+    // lock happened. (Found by Konrad Kollnig, PR #7.)
+    const epoch = captureLockEpoch();
+    const snapshot = accounts.map(a => ({ ...a }));
     const current = $('current-passphrase').value;
     const newPw = $('new-passphrase').value;
     const newPwConfirm = $('new-passphrase-confirm').value;
@@ -1770,6 +1806,7 @@ async function handleChangePassphrase() {
 
     // Verify current passphrase
     const key = await unlockWithPassphrase(current);
+    if (!isLockEpochCurrent(epoch)) return;
     if (!key) {
         showElement(errorEl, 'Current passphrase is incorrect.');
         return;
@@ -1788,16 +1825,20 @@ async function handleChangePassphrase() {
     }
 
     try {
-        const newKey = await changePassphrase(accounts, newPw);
+        const newKey = await changePassphrase(snapshot, newPw);
+
+        // Clear biometric data — it wraps the old passphrase. Do this even if
+        // the panel locked while the vault was being written.
+        await clearBiometricData().catch(err => console.error('Failed to clear old biometric data:', err));
+
+        if (!isLockEpochCurrent(epoch)) return; // changed and saved; stay locked
         setSessionKey(newKey);
         hideLockPolicy.onUnlocked(); // re-locks if the panel was closed meanwhile
 
-        // Clear biometric data — it wraps the old passphrase
-        await clearBiometricData();
-
         closeChangePassphraseModal();
         showToast('Passphrase changed successfully');
-    } catch {
+    } catch (err) {
+        if (handleStaleVault(err) || !isLockEpochCurrent(epoch)) return;
         showElement(errorEl, 'Failed to change passphrase. Please try again.');
     }
 }
@@ -1849,7 +1890,9 @@ async function handleExport() {
 
     try {
         // Full account parameters are kept — see backup.js for the format.
+        const epoch = captureLockEpoch();
         const exportData = await createBackup(accounts, pw);
+        if (!isLockEpochCurrent(epoch)) return;
 
         downloadFile(
             JSON.stringify(exportData, null, 2),
@@ -1918,7 +1961,7 @@ async function handleImport() {
                     showElement(importError, messages[err?.code] || 'Invalid backup file format.');
                     return;
                 }
-                await importMerge(restored.map(a => ({ id: generateId(), ...a })), key);
+                if (!await importMerge(restored.map(a => ({ id: generateId(), ...a })))) return;
             } else {
                 // Unencrypted JSON list of accounts. All or nothing: every
                 // entry is checked before anything is saved.
@@ -1933,7 +1976,7 @@ async function handleImport() {
                     showElement(importError, 'Invalid backup file format.');
                     return;
                 }
-                await importMerge(cleaned.map(a => ({ id: generateId(), ...a })), key);
+                if (!await importMerge(cleaned.map(a => ({ id: generateId(), ...a })))) return;
             }
         } else {
             // Plain text — otpauth:// URIs
@@ -1944,7 +1987,7 @@ async function handleImport() {
                     : 'No valid otpauth:// URIs found.');
                 return;
             }
-            await importMerge(result.accounts.map(a => ({ id: generateId(), ...a })), key);
+            if (!await importMerge(result.accounts.map(a => ({ id: generateId(), ...a })))) return;
             skipped = result.skipped;
         }
 
@@ -1958,14 +2001,12 @@ async function handleImport() {
     }
 }
 
-async function importMerge(imported, key) {
+/** Returns false if nothing was imported because the panel locked or the vault changed elsewhere. */
+async function importMerge(imported) {
     const hadExistingAccounts = accounts.length > 0;
     const existingSecrets = new Set(accounts.map(a => a.secret));
     const newAccounts = imported.filter(a => !existingSecrets.has(a.secret));
-    // Save first: memory only changes once storage has.
-    const merged = [...accounts, ...newAccounts];
-    await saveAccounts(merged, key);
-    accounts = merged;
+    if (!await persistAccounts([...accounts, ...newAccounts])) return false;
 
     // If importing into an empty vault, the imported file is effectively
     // the backup — save its fingerprint so we don't nag about backups.
@@ -1974,11 +2015,45 @@ async function importMerge(imported, key) {
     }
 
     updateTopBarBackupBadge();
+    return true;
 }
 
 // ========================================
 // Helpers
 // ========================================
+
+/**
+ * Another window changed the vault, so this panel's copy is out of date and
+ * storage.js refused to write it. Lock: unlocking again reads the current
+ * vault. Returns true if `err` was that case.
+ */
+function handleStaleVault(err) {
+    if (!(err instanceof StaleVaultError)) return false;
+    lockNow();
+    showToast(err.message);
+    return true;
+}
+
+/**
+ * Save a new account list and only then make it the list in memory, so
+ * memory never runs ahead of storage. Returns false if `next` did not become
+ * the current list (locked meanwhile, or the vault changed in another
+ * window); throws on a storage error.
+ */
+async function persistAccounts(next) {
+    const key = getSessionKey();
+    if (!key) return false;
+    const epoch = captureLockEpoch();
+    try {
+        await saveAccounts(next, key);
+    } catch (err) {
+        if (handleStaleVault(err)) return false;
+        throw err;
+    }
+    if (!isLockEpochCurrent(epoch)) return false; // saved, but the panel has locked: keep memory wiped
+    accounts = next;
+    return true;
+}
 
 /**
  * Lock the session and wipe every piece of decrypted state.

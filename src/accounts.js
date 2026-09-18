@@ -25,19 +25,29 @@ export function accountLabel(account) {
  * and a secret.
  *
  * `existing` is the account being edited, or null when adding. When editing,
- * the TOTP parameters always carry over, and issuer / accountName are only
- * replaced if the user actually changed the label.
+ * everything the form cannot show carries over: the TOTP parameters always,
+ * and a separate account name (issuer "Bank", name "alice@example.com")
+ * survives a rename — the label replaces the issuer only.
  */
 export function accountFromForm(existing, { id, label, secret }) {
-    const labelChanged = !existing || label !== accountLabel(existing);
+    if (!existing) {
+        return {
+            id, issuer: label, accountName: label, secret: normalizeSecret(secret),
+            algorithm: 'SHA1', digits: 6, period: 30,
+        };
+    }
+    const hasIssuer = typeof existing.issuer === 'string' && existing.issuer.trim() !== '';
+    const hasOwnName = hasIssuer
+        && typeof existing.accountName === 'string'
+        && existing.accountName !== existing.issuer;
     return {
-        id: existing ? existing.id : id,
-        issuer: labelChanged ? label : existing.issuer,
-        accountName: labelChanged ? label : existing.accountName,
+        id: existing.id,
+        issuer: hasIssuer ? label : '',
+        accountName: hasOwnName ? existing.accountName : label,
         secret: normalizeSecret(secret),
-        algorithm: existing?.algorithm ?? 'SHA1',
-        digits: existing?.digits ?? 6,
-        period: existing?.period ?? 30,
+        algorithm: existing.algorithm ?? 'SHA1',
+        digits: existing.digits ?? 6,
+        period: existing.period ?? 30,
     };
 }
 

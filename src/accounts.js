@@ -8,7 +8,12 @@
  * be tested directly (tests/accounts.test.js).
  */
 
-import { normalizeSecret } from './totp.js';
+import { normalizeSecret, parseOtpauthURI } from './totp.js';
+
+export const SUPPORTED_ALGORITHMS = ['SHA1', 'SHA256', 'SHA512'];
+export const SUPPORTED_DIGITS = [6, 8];
+const MAX_PERIOD_SECONDS = 86400;
+const MAX_LABEL_LENGTH = 1000;
 
 /** The label shown in the list and in the edit form. */
 export function accountLabel(account) {
@@ -34,4 +39,65 @@ export function accountFromForm(existing, { id, label, secret }) {
         digits: existing?.digits ?? 6,
         period: existing?.period ?? 30,
     };
+}
+
+/**
+ * Check and clean one account read from a file (backup, JSON or URI list)
+ * before it goes anywhere near the vault. Returns a new object with exactly
+ * the account fields (no `id` — the caller assigns one), or throws.
+ *
+ * Absent TOTP parameters get the defaults. Parameters that are present but
+ * unsupported are refused, never replaced by a default: a default would
+ * import "successfully" and then generate the wrong codes.
+ *
+ * The secret only has to be Base32 — no minimum length — so that a backup
+ * of any account this extension has ever accepted can always be restored.
+ */
+export function cleanImportedAccount(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+        throw new Error('Account is not an object.');
+    }
+
+    const text = (value, name) => {
+        if (value === undefined || value === null) return '';
+        if (typeof value !== 'string') throw new Error(`Account ${name} is not text.`);
+        if (value.length > MAX_LABEL_LENGTH) throw new Error(`Account ${name} is too long.`);
+        return value;
+    };
+    const issuer = text(raw.issuer, 'issuer');
+    const accountName = text(raw.accountName, 'name');
+
+    if (typeof raw.secret !== 'string') throw new Error('Account secret is missing.');
+    const secret = normalizeSecret(raw.secret);
+    if (!/^[A-Z2-7]+$/.test(secret)) throw new Error('Account secret is not Base32.');
+
+    const algorithm = raw.algorithm === undefined ? 'SHA1' : raw.algorithm;
+    if (!SUPPORTED_ALGORITHMS.includes(algorithm)) throw new Error('Unsupported algorithm.');
+
+    const digits = raw.digits === undefined ? 6 : raw.digits;
+    if (!SUPPORTED_DIGITS.includes(digits)) throw new Error('Unsupported number of digits.');
+
+    const period = raw.period === undefined ? 30 : raw.period;
+    if (!Number.isInteger(period) || period < 1 || period > MAX_PERIOD_SECONDS) {
+        throw new Error('Unsupported period.');
+    }
+
+    return { issuer, accountName, secret, algorithm, digits, period };
+}
+
+/**
+ * Read a text file of otpauth:// URIs, one per line.
+ * Returns { accounts, skipped } where `skipped` counts otpauth:// lines that
+ * could not be used (malformed, not TOTP, or unsupported settings).
+ */
+export function accountsFromUriList(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('otpauth://'));
+    const accounts = [];
+    for (const line of lines) {
+        try {
+            const parsed = parseOtpauthURI(line);
+            if (parsed) accounts.push(cleanImportedAccount(parsed));
+        } catch { /* counted as skipped below */ }
+    }
+    return { accounts, skipped: lines.length - accounts.length };
 }

@@ -7,13 +7,13 @@
 
 
 import browser from './browser.js';
-import { generateTOTP, getRemainingSeconds, parseOtpauthURI, buildOtpauthURI, validateBase32 } from './totp.js';
+import { generateTOTP, getRemainingSeconds, buildOtpauthURI, validateBase32 } from './totp.js';
 import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState } from './storage.js';
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { checkPassphraseStrength } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
-import { accountFromForm, accountLabel } from './accounts.js';
+import { accountFromForm, accountLabel, cleanImportedAccount, accountsFromUriList } from './accounts.js';
 
 // ========================================
 // EULA
@@ -1909,6 +1909,7 @@ async function handleImport() {
     const key = getSessionKey();
     if (!key) return;
 
+    let skipped = 0;
     try {
         const text = await file.text();
 
@@ -1935,38 +1936,39 @@ async function handleImport() {
                 }
                 await importMerge(restored.map(a => ({ id: generateId(), ...a })), key);
             } else {
-                // Try as plain account array
-                const imported = data;
-                if (!Array.isArray(imported)) {
+                // Unencrypted JSON list of accounts. All or nothing: every
+                // entry is checked before anything is saved.
+                if (!Array.isArray(data)) {
                     showElement(importError, 'Invalid backup file format.');
                     return;
                 }
-                await importMerge(imported, key);
+                let cleaned;
+                try {
+                    cleaned = data.map(cleanImportedAccount);
+                } catch {
+                    showElement(importError, 'Invalid backup file format.');
+                    return;
+                }
+                await importMerge(cleaned.map(a => ({ id: generateId(), ...a })), key);
             }
         } else {
             // Plain text — otpauth:// URIs
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l.startsWith('otpauth://'));
-            if (lines.length === 0) {
-                showElement(importError, 'No valid otpauth:// URIs found.');
+            const result = accountsFromUriList(text);
+            if (result.accounts.length === 0) {
+                showElement(importError, result.skipped > 0
+                    ? 'None of the otpauth:// URIs could be used (malformed, or settings this app does not support).'
+                    : 'No valid otpauth:// URIs found.');
                 return;
             }
-            const imported = [];
-            for (const line of lines) {
-                const parsed = parseOtpauthURI(line);
-                if (parsed) {
-                    imported.push({ id: generateId(), ...parsed });
-                }
-            }
-            if (imported.length === 0) {
-                showElement(importError, 'Could not parse any valid URIs.');
-                return;
-            }
-            await importMerge(imported, key);
+            await importMerge(result.accounts.map(a => ({ id: generateId(), ...a })), key);
+            skipped = result.skipped;
         }
 
         importModalOverlay.style.display = 'none';
         renderAccounts();
-        showToast('Import complete');
+        showToast(skipped > 0
+            ? `Import complete. ${skipped} ${skipped === 1 ? 'entry was' : 'entries were'} skipped: malformed or unsupported settings.`
+            : 'Import complete');
     } catch {
         showElement(importError, 'Import failed. Check file format.');
     }
@@ -1976,14 +1978,10 @@ async function importMerge(imported, key) {
     const hadExistingAccounts = accounts.length > 0;
     const existingSecrets = new Set(accounts.map(a => a.secret));
     const newAccounts = imported.filter(a => !existingSecrets.has(a.secret));
-    // Ensure unique IDs
-    newAccounts.forEach(a => {
-        if (accounts.some(existing => existing.id === a.id)) {
-            a.id = generateId();
-        }
-    });
-    accounts = [...accounts, ...newAccounts];
-    await saveAccounts(accounts, key);
+    // Save first: memory only changes once storage has.
+    const merged = [...accounts, ...newAccounts];
+    await saveAccounts(merged, key);
+    accounts = merged;
 
     // If importing into an empty vault, the imported file is effectively
     // the backup — save its fingerprint so we don't nag about backups.
@@ -2114,7 +2112,7 @@ function formatCode(code) {
 }
 
 function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+    return crypto.randomUUID();
 }
 
 function dateStamp() {

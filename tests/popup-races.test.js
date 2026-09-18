@@ -15,10 +15,14 @@ const dom = installFakeDom();
 
 // popup.js starts timers (code refresh, auto-lock, toasts). Don't let them
 // keep the test process alive after the last test.
+const realSetTimeout = globalThis.setTimeout;
 for (const name of ['setInterval', 'setTimeout']) {
     const real = globalThis[name];
     globalThis[name] = (...args) => real(...args).unref();
 }
+
+/** Let fire-and-forget work started by a handler (a render, say) finish. */
+const settle = () => new Promise((resolve) => realSetTimeout(resolve, 50));
 
 const storage = await import('../src/storage.js');   // the panel's own copy
 const session = await import('../src/session.js');
@@ -179,4 +183,54 @@ test('locking while a save is in flight does not put the accounts back in memory
     // The save itself was already under way and completes; memory stays wiped.
     const onDisk = await accountsOnDisk(NEW_PASSPHRASE);
     assert.equal(onDisk.length, 4);
+});
+
+// Both of these were found by Konrad Kollnig reviewing PR #17.
+
+test('locking while the Settings passphrase is verified does not restore it', async () => {
+    await unlockPanel(NEW_PASSPHRASE);
+    click('settings-btn');
+    // The Settings route asks for the master passphrase again before enabling
+    // Touch ID. Verification is slow, so a lock can land in the middle of it.
+    dom.element('biometric-setup-passphrase').value = NEW_PASSPHRASE;
+    dom.element('biometric-passphrase-group').style.display = 'block';
+
+    const hold = fake.holdNextGet('redd2fa_meta');    // pause inside unlockWithPassphrase
+    const enabling = click('biometric-enable-btn');
+    await hold.started;
+    await dom.setPanelHidden(true);                   // closing the panel locks and wipes
+    await dom.setPanelHidden(false);
+    hold.release();
+    await enabling;
+
+    assert.equal(session.isUnlocked(), false, 'still locked');
+    // Accepting the passphrase is what hides the passphrase field and starts
+    // registration. Neither may happen once the panel has locked, because the
+    // continuation would be holding the master passphrase in a wiped panel.
+    assert.equal(shown('biometric-passphrase-group'), true,
+        'the passphrase was not accepted into a locked panel');
+    assert.equal(dom.element('biometric-setup-passphrase').value, '',
+        'the wipe stands: nothing was put back');
+    assert.equal(fake.dump().redd2fa_biometric, undefined, 'no credential registered');
+});
+
+test('locking while a code is being generated leaves nothing on the clipboard', async () => {
+    await unlockPanel(NEW_PASSPHRASE);
+    dom.clipboard.reset();
+
+    await settle();                                   // renderAccounts() is not awaited by the unlock handler
+    const cards = dom.element('account-list').querySelectorAll('.account-card');
+    assert.ok(cards.length > 0, 'accounts rendered, so there is a card to click');
+
+    // Pause the clipboard write, lock while it is in flight, then let it land.
+    const hold = dom.clipboard.holdNextWrite();
+    cards[0].fire('click', { target: cards[0] });     // the card listener does not return its promise
+    await hold.started;
+    await dom.setPanelHidden(true);
+    await dom.setPanelHidden(false);
+    hold.release();
+    await settle();
+
+    assert.equal(session.isUnlocked(), false, 'still locked');
+    assert.equal(dom.clipboard.text, '', 'the code was cleared once the lock won');
 });

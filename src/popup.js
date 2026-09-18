@@ -910,12 +910,13 @@ async function promptBiometricSetup(passphrase, epoch = captureLockEpoch()) {
     }
 }
 
-async function beginBiometricRegistration() {
+async function beginBiometricRegistration(epoch = captureLockEpoch()) {
+    if (!isLockEpochCurrent(epoch)) return;
     if (isWindowsPlatform()) {
         biometricPromptOverlay.style.display = 'none';
         $('windows-hint-overlay').style.display = 'flex';
     } else {
-        await performBiometricRegistration();
+        await performBiometricRegistration(epoch);
     }
 }
 
@@ -1198,8 +1199,9 @@ async function handleBiometricUnlockResult(message, epoch) {
  * second click can't start a parallel WebAuthn ceremony (which Chrome rejects
  * with NotAllowedError, surfacing as a confusing "setup failed" toast).
  */
-async function performBiometricRegistration() {
+async function performBiometricRegistration(epoch = captureLockEpoch()) {
     if (await needsTabWorkaroundForWebAuthn()) {
+        if (!isLockEpochCurrent(epoch)) return;
         try {
             await openBiometricTab('setup');
             biometricPromptOverlay.style.display = 'none';
@@ -1225,6 +1227,7 @@ async function performBiometricRegistration() {
             try {
                 // Test if the old credential still works
                 const passphrase = await authenticateBiometric(existing);
+                if (!isLockEpochCurrent(epoch)) return;
                 // It works — re-enable with existing data
                 delete existing.disabled;
                 await saveBiometricData(existing);
@@ -1241,6 +1244,7 @@ async function performBiometricRegistration() {
         }
 
         const data = await registerBiometric(pendingPassphrase);
+        if (!isLockEpochCurrent(epoch)) return;
         await saveBiometricData(data);
         pendingPassphrase = null;
         if (pendingPassphraseTimer) { clearTimeout(pendingPassphraseTimer); pendingPassphraseTimer = null; }
@@ -1278,10 +1282,15 @@ function initBiometricListeners() {
     biometricUnlockBtn.addEventListener('click', handleBiometricUnlock);
 
     $('biometric-enable-btn').addEventListener('click', async () => {
+        const epoch = captureLockEpoch();
         if (!pendingPassphrase) {
             const entered = $('biometric-setup-passphrase').value;
             if (!entered) return;
             const key = await unlockWithPassphrase(entered);
+            // Verification is deliberately slow (600k PBKDF2 rounds). If the
+            // panel locked while it ran, the lock already wiped every field —
+            // putting the master passphrase back now would undo that.
+            if (!isLockEpochCurrent(epoch)) return;
             if (!key) {
                 showToast('Incorrect passphrase.');
                 return;
@@ -1291,7 +1300,7 @@ function initBiometricListeners() {
             $('biometric-passphrase-group').style.display = 'none';
         }
 
-        await beginBiometricRegistration();
+        await beginBiometricRegistration(epoch);
     });
 
     // Windows hint buttons
@@ -1644,10 +1653,22 @@ async function copyCode(accountId, cardElement) {
     const account = accounts.find(a => a.id === accountId);
     if (!account) return;
 
+    const epoch = captureLockEpoch();
     const code = await generateTOTP(account.secret, account.digits, account.period, account.algorithm);
+    // A lock while the code was being generated has already flushed the
+    // clipboard, and it found nothing scheduled. Writing now would leave a
+    // live code behind in a panel the user has closed.
+    if (!isLockEpochCurrent(epoch)) return;
 
     try {
         await navigator.clipboard.writeText(code);
+        if (!isLockEpochCurrent(epoch)) {
+            // Locked between the check above and the write landing. Await the
+            // clear: copyCode must not return while a live code is still on
+            // the clipboard of a panel the user has closed.
+            await navigator.clipboard.writeText('').catch(() => { });
+            return;
+        }
         flashCopyButton(cardElement?.querySelector('.account-copy-btn'));
         cardElement.classList.add('copied');
         setTimeout(() => cardElement.classList.remove('copied'), 600);

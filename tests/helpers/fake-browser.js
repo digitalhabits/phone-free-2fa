@@ -14,11 +14,18 @@ export function installFakeBrowser() {
     let data = {};
     let setCalls = 0;
     let failAt = null;
+    let heldGet = null; // { matches, started(), gate }
 
     const clone = (v) => JSON.parse(JSON.stringify(v));
 
     const local = {
         async get(keys) {
+            if (heldGet && heldGet.matches(keys)) {
+                const held = heldGet;
+                heldGet = null;
+                held.started();
+                await held.gate;
+            }
             if (keys == null) return clone(data);
             const list = Array.isArray(keys) ? keys : [keys];
             const out = {};
@@ -41,15 +48,31 @@ export function installFakeBrowser() {
         },
     };
 
-    globalThis.browser = { storage: { local } };
+    globalThis.browser = {
+        storage: { local },
+        // Enough of the runtime API for popup.js to load.
+        runtime: { onMessage: { addListener() { } }, getURL: (path) => `chrome-extension://test/${path}` },
+    };
 
     return {
         /** Wipe storage and counters (fresh profile). */
-        reset() { data = {}; setCalls = 0; failAt = null; },
+        reset() { data = {}; setCalls = 0; failAt = null; heldGet = null; },
         /** Make the n-th set() call from now fail without writing. */
         failOnSet(n) { setCalls = 0; failAt = n; },
         /** Stop injecting failures. */
         clearFailure() { failAt = null; },
+        /**
+         * Pause the next get() that asks for `key`, to open a window in which a
+         * test can make something else happen (a lock, a write from another
+         * panel). Returns { started, release }: await `started`, act, call `release()`.
+         */
+        holdNextGet(key) {
+            let started, release;
+            const startedPromise = new Promise(resolve => { started = resolve; });
+            const gate = new Promise(resolve => { release = resolve; });
+            heldGet = { matches: (keys) => [].concat(keys).includes(key), started, gate };
+            return { started: startedPromise, release };
+        },
         /** Number of set() calls since the last reset() / failOnSet(). */
         setCallCount() { return setCalls; },
         /** Snapshot of everything currently stored. */

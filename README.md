@@ -159,7 +159,7 @@ tools/publish/          # Store publisher, pinned by lockfile — release-time o
 npm test
 ```
 
-Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`, `lock-policy.js`, `passphrase-strength.js`) so it can be tested directly: RFC 6238 vectors, backup round-trips for every algorithm / digits / period, storage-failure injection during passphrase change, and the lock-on-hide rules. Guard tests read the source as text and fail if a network API, an extra permission, an unpinned GitHub Action, or a store secret outside the approval-gated job ever appears. What needs a real browser is in [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`, `lock-policy.js`, `passphrase-strength.js`) so it can be tested directly: RFC 6238 vectors, backup round-trips for every algorithm / digits / period, storage-failure injection during passphrase change, two panels writing to one vault, and the lock-on-hide rules. `popup.js` itself runs under a small fake DOM (`tests/helpers/fake-dom.js`) to test what happens when the panel locks, or another window writes, while a handler is waiting. Guard tests read the source as text and fail if a network API, an extra permission, an unpinned GitHub Action, or a store secret outside the approval-gated job ever appears. What needs a real browser is in [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
 
 ### Verifying a release
 

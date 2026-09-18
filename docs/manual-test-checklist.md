@@ -31,6 +31,13 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 ## 4. Two windows
 
 - [ ] Open the panel in two browser windows, unlock both. Start Touch ID setup from one. → Setup completes (2.7 could fail with "Could not retrieve the passphrase").
+- [ ] Unlock in both windows. Add an account in window 1. Then add a different account in window 2. → Window 2 locks with "Vault changed in another window. Please unlock again." After unlocking, window 2 shows window 1's account, and adding now works.
+- [ ] Unlock in both windows. Change the passphrase in window 1. Delete an account in window 2. → Window 2 locks with the same message; nothing was deleted; only the new passphrase unlocks.
+
+## 4b. Auto-lock setting
+
+- [ ] Set auto-lock to **Never**, close and reopen the panel, unlock, wait 30 seconds. → Still unlocked (2.7 locked after 10 seconds).
+- [ ] While unlocked, switch from **Never** to **1 minute** and leave the panel alone. → Locks after about a minute (2.7 never locked).
 
 ## 5. Manifest: permissions and CSP
 

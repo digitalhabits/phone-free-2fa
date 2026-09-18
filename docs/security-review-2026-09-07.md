@@ -17,7 +17,7 @@ A second, LLM-assisted review by an external reader (5 September 2026) overlappe
 | # | Finding | Status | Fix | Test |
 |---|---|---|---|---|
 | A | Encrypted backup drops algorithm / digits / period (external review, High) | Fixed | `src/backup.js` (format v3) | `tests/backup.test.js` |
-| A2 | Editing an account reset algorithm / digits / period (found while fixing A) | Fixed | `accountFromForm` in `src/accounts.js` | `tests/accounts.test.js` |
+| A2 | Editing an account reset algorithm / digits / period (found while fixing A; independently by Konrad Kollnig, PR #8) | Fixed | `accountFromForm` in `src/accounts.js` | `tests/accounts.test.js` |
 | 1 | Change-passphrase can lock the vault | Fixed | `writeVault` in `src/storage.js` — one atomic write | `tests/storage.test.js` (failure injection) |
 | 2 | Release pipeline supply chain | Fixed in repo; **needs the `store-release` environment configured on GitHub** | `.github/workflows/release.yml`, `tools/` | `tests/release-pipeline.test.js` |
 | 3 | `tabs` permission unnecessary | Fixed | `src/manifest.json` | `tests/no-network.test.js` + *manual* §5 |
@@ -28,6 +28,9 @@ A second, LLM-assisted review by an external reader (5 September 2026) overlappe
 | 8a | Unsalted backup fingerprint | Fixed | `src/storage.js` | `tests/storage.test.js` |
 | 8b | Import validation | Fixed | `cleanImportedAccount` in `src/accounts.js` | `tests/accounts.test.js`, `tests/backup.test.js` |
 | 8c | Two-window race | Fixed | `initBiometricMessaging` in `src/popup.js` | *manual* §4 |
+| K1 | Two windows: a save from a window holding an old key or an older copy destroys the vault or loses changes (Konrad Kollnig, PR #7) | Fixed | stale-vault check + Web Locks in `src/storage.js` | `tests/two-windows.test.js`, `tests/popup-races.test.js` + *manual* §4 |
+| K2 | Lock during passphrase change saves an empty vault; async work outliving a lock (Konrad Kollnig, PR #7) | Fixed | lock epoch in `src/session.js`, checks in `src/popup.js` | `tests/popup-races.test.js`, `tests/session.test.js` |
+| K3 | Auto-lock timer ignores setting changes (Konrad Kollnig, PR #9) | Fixed | `setAutoLockMinutes` in `src/session.js` | `tests/session.test.js` + *manual* §4b |
 | 8d | Unicode normalisation of passphrases | **Open** — needs a migration that cannot lock out existing users; planned as its own release | | |
 | 8e | Abandoned Touch ID tab keeps the vault unlocked (also external review #5) | Fixed | `src/lock-policy.js` | `tests/lock-policy.test.js` + *manual* §2 |
 | 8f | Redundant verifier | **Won't fix for now** — a format migration for no security gain | | |

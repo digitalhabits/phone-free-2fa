@@ -146,6 +146,8 @@ src/
 └── icons/              # Extension icons
 
 tests/                  # node --test, no dependencies — never shipped
+tools/build-zip.sh      # Reproducible release zip (src/ only)
+tools/publish/          # Store publisher, pinned by lockfile — release-time only
 ```
 
 ### Tests
@@ -155,6 +157,10 @@ npm test
 ```
 
 Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, and the encrypted storage manager. What needs a real browser is checked by hand.
+
+### Verifying a release
+
+The zip on each [GitHub Release](https://github.com/digitalhabits/phone-free-2fa/releases) is the exact file submitted to the stores, and the release notes list its SHA-256. To rebuild it: check out the tag and run `tools/build-zip.sh` — the same commit gives the same bytes. Store submission runs in a separate, approval-gated job that installs its one tool from a committed lockfile with install scripts disabled ([`release.yml`](.github/workflows/release.yml)).
 
 ### Auditability
 

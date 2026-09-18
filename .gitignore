@@ -9,6 +9,8 @@ xcuserdata/
 DerivedData/
 build/
 *.zip
+*.zip.sha256
+node_modules/
 
 # Exploratory logo concepts (not part of shipped extension)
 docs/logo-concepts/

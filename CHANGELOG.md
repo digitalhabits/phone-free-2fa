@@ -14,6 +14,19 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which checks the tag matches `manifest.json`, builds `phone-free-2fa-redd-vX.Y.zip`, and publishes a GitHub Release with that zip attached.
 
+## [2.8] - unreleased
+
+Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07.md`). Every fix has a test in `tests/` (`npm test`, no dependencies).
+
+### Fixed
+
+- **Encrypted backups lost account settings.** Backups stored only a label and secret, so accounts that don't use the default SHA-1 / 6 digits / 30 seconds generated wrong codes after a restore. Backups now keep every setting (format v3). Older backup files still import. If you have such an account, the app will ask you to make a new backup. (`src/backup.js`, `tests/backup.test.js`)
+- **Editing an account reset its settings.** Renaming an account that doesn't use the defaults silently switched it back to SHA-1 / 6 digits / 30 seconds. (`src/accounts.js`, `tests/accounts.test.js`)
+
+### Security
+
+- The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. (`src/storage.js`)
+
 ## [2.7] - 2026-07-25
 
 ### Changed

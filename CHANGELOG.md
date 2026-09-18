@@ -23,6 +23,8 @@ Fixes from the September 2026 security reviews (`docs/security-review-2026-09-07
 - **Encrypted backups lost account settings.** Backups stored only a label and secret, so accounts that don't use the default SHA-1 / 6 digits / 30 seconds generated wrong codes after a restore. Backups now keep every setting (format v3). Older backup files still import. If you have such an account, the app will ask you to make a new backup. (`src/backup.js`, `tests/backup.test.js`)
 - **Editing an account reset its settings.** Renaming an account that doesn't use the defaults silently switched it back to SHA-1 / 6 digits / 30 seconds. (`src/accounts.js`, `tests/accounts.test.js`)
 
+- **Changing the passphrase could lock the vault for good.** The new passphrase check and the re-encrypted accounts were saved in two steps; a crash between them left a vault that neither passphrase could open. Both are now saved in a single all-or-nothing write, after checking the re-encrypted vault opens. (`src/storage.js`, `tests/storage.test.js`)
+
 ### Security
 
 - The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. (`src/storage.js`)

@@ -33,26 +33,46 @@ export async function isFirstLaunch() {
 }
 
 /**
- * Set up encryption for the first time with a new passphrase.
- * Generates salt, derives key, stores empty encrypted accounts.
+ * Create a vault generation — fresh salt, verifier and re-encrypted accounts —
+ * and commit it in ONE storage write.
+ *
+ * Meta (salt + verifier) and data (ciphertext) only make sense as a pair:
+ * meta from one passphrase next to data from another is a vault that no
+ * passphrase can open. Writing them separately leaves exactly that state if
+ * the browser dies or the second write fails. A single set() call is applied
+ * as a whole, so storage always holds a complete old or complete new vault.
+ *
+ * (Checked in browser source, Sept 2026: Chrome applies one set() as a single
+ * LevelDB WriteBatch — components/value_store/leveldb_value_store.cc; Firefox
+ * as a single IndexedDB transaction that aborts on error —
+ * toolkit/components/extensions/ExtensionStorageIDB.sys.mjs.)
  */
-export async function setupPassphrase(passphrase) {
+async function writeVault(passphrase, accounts) {
     const salt = generateSalt();
     const key = await deriveKey(passphrase, salt);
     const passphraseHash = await createPassphraseHash(passphrase, salt);
 
-    // Store meta
-    const meta = {
-        salt,
-        passphraseHash,
-        version: SCHEMA_VERSION,
-    };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
+    const plaintext = JSON.stringify(accounts);
+    const encrypted = await encrypt(plaintext, key);
 
-    // Store empty accounts
-    await saveAccounts([], key);
+    // Prove the new blob opens before it replaces the old one.
+    if (await decrypt(encrypted.iv, encrypted.ciphertext, key) !== plaintext) {
+        throw new Error('Re-encrypted vault failed verification; nothing was written.');
+    }
 
+    await browser.storage.local.set({
+        [STORAGE_KEY_META]: { salt, passphraseHash, version: SCHEMA_VERSION },
+        [STORAGE_KEY_DATA]: encrypted,
+    });
     return key;
+}
+
+/**
+ * Set up encryption for the first time with a new passphrase.
+ * Stores an empty encrypted vault. Returns the derived CryptoKey.
+ */
+export async function setupPassphrase(passphrase) {
+    return writeVault(passphrase, []);
 }
 
 /**
@@ -73,21 +93,10 @@ export async function unlockWithPassphrase(passphrase) {
 
 /**
  * Change the master passphrase. Re-encrypts all accounts with a new key.
- * Returns the new CryptoKey.
+ * All-or-nothing — see writeVault(). Returns the new CryptoKey.
  */
 export async function changePassphrase(accounts, newPassphrase) {
-    const salt = generateSalt();
-    const newKey = await deriveKey(newPassphrase, salt);
-    const passphraseHash = await createPassphraseHash(newPassphrase, salt);
-
-    // Update meta with new salt and hash
-    const meta = { salt, passphraseHash, version: SCHEMA_VERSION };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
-
-    // Re-encrypt accounts with the new key
-    await saveAccounts(accounts, newKey);
-
-    return newKey;
+    return writeVault(newPassphrase, accounts);
 }
 
 /**

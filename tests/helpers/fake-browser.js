@@ -50,6 +50,8 @@ export function installFakeBrowser() {
         failOnSet(n) { setCalls = 0; failAt = n; },
         /** Stop injecting failures. */
         clearFailure() { failAt = null; },
+        /** Number of set() calls since the last reset() / failOnSet(). */
+        setCallCount() { return setCalls; },
         /** Snapshot of everything currently stored. */
         dump() { return clone(data); },
     };

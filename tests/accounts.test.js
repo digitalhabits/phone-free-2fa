@@ -20,9 +20,22 @@ test('adding an account uses the defaults and normalises the secret', () => {
     });
 });
 
-test('renaming keeps algorithm, digits and period', () => {
+test('renaming keeps algorithm, digits, period and a separate account name', () => {
     const edited = accountFromForm(IMPORTED, { id: 'ignored', label: 'My bank', secret: IMPORTED.secret });
-    assert.deepEqual(edited, { ...IMPORTED, issuer: 'My bank', accountName: 'My bank' });
+    assert.deepEqual(edited, { ...IMPORTED, issuer: 'My bank' }); // alice@example.com survives
+});
+
+test('renaming a manually added account (issuer = name) renames both', () => {
+    const manual = { ...IMPORTED, issuer: 'Bank', accountName: 'Bank' };
+    const edited = accountFromForm(manual, { id: 'ignored', label: 'My bank', secret: manual.secret });
+    assert.deepEqual(edited, { ...manual, issuer: 'My bank', accountName: 'My bank' });
+});
+
+test('renaming an account that has no issuer renames the account name and keeps the issuer empty', () => {
+    const noIssuer = { ...IMPORTED, issuer: '', accountName: 'alice' };
+    const edited = accountFromForm(noIssuer, { id: 'ignored', label: 'Alice work', secret: noIssuer.secret });
+    assert.deepEqual(edited, { ...noIssuer, accountName: 'Alice work' });
+    assert.equal(accountLabel(edited), 'Alice work');
 });
 
 test('saving the edit form without changes changes nothing', () => {

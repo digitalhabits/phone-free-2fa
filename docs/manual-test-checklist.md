@@ -8,7 +8,7 @@ Chrome's extension page will show two warnings under **Errors**. Both are expect
 
 ## 1. Touch ID still works (do this first)
 
-The lock rules around the Touch ID tab changed in 2.8. If the browser reports the panel as hidden while the Touch ID tab is in front, these would break.
+The lock rules around the Touch ID tab changed in 2.9. If the browser reports the panel as hidden while the Touch ID tab is in front, these would break.
 
 - [ ] Lock the vault. Click **Unlock with Touch ID**, complete the prompt. → The tab closes and the panel shows your accounts.
 - [ ] Settings → disable Touch ID, then enable it again. → "Touch ID re-enabled!" and the panel is still unlocked.
@@ -19,7 +19,7 @@ The lock rules around the Touch ID tab changed in 2.8. If the browser reports th
 Set auto-lock to **Never** for this section, so only the hide rules are being tested.
 
 - [ ] Unlock, close the side panel, reopen it. → Lock screen.
-- [ ] Unlock. Start Touch ID setup so the tab opens. Close the **side panel**, then close the **Touch ID tab**. Reopen the panel. → Lock screen. *(2.7 stayed unlocked here.)*
+- [ ] Unlock. Start Touch ID setup so the tab opens. Close the **side panel**, then close the **Touch ID tab**. Reopen the panel. → Lock screen. *(2.8 stayed unlocked here.)*
 - [ ] Unlock. Start Touch ID setup. Close the side panel and leave the tab open for about 3 minutes (the limit is 2; browsers slow timers in hidden pages). Reopen the panel. → Lock screen. The Touch ID tab has normally been closed for you.
 - [ ] Lock. Click **Unlock with Touch ID**. While the prompt is showing, close the side panel, then complete Touch ID. Reopen the panel. → Lock screen.
 - [ ] Unlock. Start Touch ID setup, cancel the prompt, close the tab **without** closing the panel. → Panel is still unlocked, toast says setup was cancelled.
@@ -30,14 +30,14 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 
 ## 4. Two windows
 
-- [ ] Open the panel in two browser windows, unlock both. Start Touch ID setup from one. → Setup completes (2.7 could fail with "Could not retrieve the passphrase").
+- [ ] Open the panel in two browser windows, unlock both. Start Touch ID setup from one. → Setup completes (2.8 could fail with "Could not retrieve the passphrase").
 - [ ] Unlock in both windows. Add an account in window 1. Then add a different account in window 2. → Window 2 locks with "Vault changed in another window. Please unlock again." After unlocking, window 2 shows window 1's account, and adding now works.
 - [ ] Unlock in both windows. Change the passphrase in window 1. Delete an account in window 2. → Window 2 locks with the same message; nothing was deleted; only the new passphrase unlocks.
 
 ## 4b. Auto-lock setting
 
-- [ ] Set auto-lock to **Never**, close and reopen the panel, unlock, wait 30 seconds. → Still unlocked (2.7 locked after 10 seconds).
-- [ ] While unlocked, switch from **Never** to **1 minute** and leave the panel alone. → Locks after about a minute (2.7 never locked).
+- [ ] Set auto-lock to **Never**, close and reopen the panel, unlock, wait 30 seconds. → Still unlocked (2.8 locked after 10 seconds).
+- [ ] While unlocked, switch from **Never** to **1 minute** and leave the panel alone. → Locks after about a minute (2.8 never locked).
 
 ## 5. Manifest: permissions and CSP
 
@@ -52,7 +52,7 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 - [ ] Rename that account. → Still 8 digits, 60 seconds.
 - [ ] Export an encrypted backup with the password `password1234`. → Refused. Export with a real password.
 - [ ] Delete the account, import the backup. → Same 8-digit code as before, at the same moment, as another authenticator loaded with the same URI.
-- [ ] Import a backup file made with 2.7. → Imports; accounts are 6 digits / 30 seconds.
+- [ ] Import a backup file made with 2.8 or earlier. → Imports; accounts are 6 digits / 30 seconds.
 
 ## 7. Passphrase change
 

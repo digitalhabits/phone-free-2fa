@@ -4,6 +4,8 @@
 
 Load the unpacked extension from `src/` (`chrome://extensions` → Developer mode → Load unpacked; Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → `src/manifest.json`).
 
+Chrome's extension page will show two warnings under **Errors**. Both are expected, because one manifest serves both browsers: `'background.scripts' requires manifest version of 2 or lower` (Firefox needs that key; Chrome uses `service_worker`) and `Unrecognized manifest key 'sidebar_action'` (Firefox's sidebar; Chrome uses `side_panel`). Anything else listed there is a real problem.
+
 ## 1. Touch ID still works (do this first)
 
 The lock rules around the Touch ID tab changed in 2.8. If the browser reports the panel as hidden while the Touch ID tab is in front, these would break.

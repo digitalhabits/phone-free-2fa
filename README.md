@@ -40,7 +40,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - **Copy on click** — tap any account card to copy its current code
 - **Progress ring** — visual countdown showing time remaining for each code
 - **Change passphrase** — re-encrypts all accounts with a new key
-- **Backup / restore** — encrypted JSON export (stores only label + secret pairs); import supports both encrypted backups and plain `otpauth://` URI text files from other authenticator apps
+- **Backup / restore** — encrypted JSON export keeping everything an account needs to generate the same codes again: issuer, account name, secret, algorithm, digits and period; import supports these backups (including those written by earlier versions), and plain `otpauth://` URI text files from other authenticator apps
 - **Backup status** — warning badge in the top bar and on the Export button if no backup has been exported, or if accounts have changed since the last export
 - **Plain text URI export** — export accounts as standard `otpauth://` URIs for migrating to another authenticator app
 - **Account migration** — view secret keys in the edit view for manual transfer, or use plain text URI export

@@ -7,12 +7,13 @@
 
 
 import browser from './browser.js';
-import { generateTOTP, getRemainingSeconds, parseOtpauthURI, buildOtpauthURI, validateBase32, normalizeSecret } from './totp.js';
+import { generateTOTP, getRemainingSeconds, parseOtpauthURI, buildOtpauthURI, validateBase32 } from './totp.js';
 import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState } from './storage.js';
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { checkPassphraseStrength } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
+import { accountFromForm, accountLabel } from './accounts.js';
 
 // ========================================
 // EULA
@@ -1658,7 +1659,7 @@ function openAccountModal(editId) {
         const account = accounts.find(a => a.id === editId);
         if (!account) return;
         modalTitle.textContent = 'Edit Account';
-        manualLabel.value = account.issuer || account.accountName;
+        manualLabel.value = accountLabel(account);
         manualSecret.value = account.secret;
         // Copy button only makes sense in edit mode (migration flow) —
         // in add mode the user just pasted the secret themselves.
@@ -1705,15 +1706,9 @@ async function handleSaveAccount() {
         return;
     }
 
-    const account = {
-        id: editingAccountId || generateId(),
-        issuer: label,
-        accountName: label,
-        secret: normalizeSecret(secret),
-        algorithm: 'SHA1',
-        digits: 6,
-        period: 30,
-    };
+    // Editing keeps the account's algorithm / digits / period — see accounts.js.
+    const existing = editingAccountId ? accounts.find(a => a.id === editingAccountId) : null;
+    const account = accountFromForm(existing || null, { id: generateId(), label, secret });
 
     // Save
     if (editingAccountId) {

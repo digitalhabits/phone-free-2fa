@@ -40,7 +40,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 - **Copy on click** — tap any account card to copy its current code
 - **Progress ring** — visual countdown showing time remaining for each code
 - **Change passphrase** — re-encrypts all accounts with a new key
-- **Backup / restore** — encrypted JSON export (stores only label + secret pairs); import supports both encrypted backups and plain `otpauth://` URI text files from other authenticator apps
+- **Backup / restore** — encrypted JSON export keeping everything an account needs to generate the same codes again: issuer, account name, secret, algorithm, digits and period; import supports these backups (including those written by earlier versions), and plain `otpauth://` URI text files from other authenticator apps
 - **Backup status** — warning badge in the top bar and on the Export button if no backup has been exported, or if accounts have changed since the last export
 - **Plain text URI export** — export accounts as standard `otpauth://` URIs for migrating to another authenticator app
 - **Account migration** — view secret keys in the edit view for manual transfer, or use plain text URI export
@@ -136,6 +136,8 @@ src/
 ├── crypto.js           # Encryption/decryption (AES-GCM, PBKDF2)
 ├── totp.js             # TOTP engine (Base32, HMAC, RFC 6238)
 ├── storage.js          # Encrypted storage manager + backup fingerprinting
+├── backup.js           # Encrypted backup file format (create / read)
+├── accounts.js         # Account objects: edit form, import validation
 ├── session.js          # In-memory session & auto-lock
 ├── biometric.js        # WebAuthn biometric unlock (PRF hardware integration)
 ├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
@@ -156,7 +158,7 @@ tools/publish/          # Store publisher, pinned by lockfile — release-time o
 npm test
 ```
 
-Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, and the encrypted storage manager. What needs a real browser is checked by hand.
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, the encrypted storage manager, and backup round-trips for every algorithm / digits / period. What needs a real browser is checked by hand.
 
 ### Verifying a release
 

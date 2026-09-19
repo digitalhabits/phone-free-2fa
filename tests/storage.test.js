@@ -69,9 +69,47 @@ test('backup status: never → current → stale', async () => {
 
     await storage.saveBackupFingerprint(ACCOUNTS);
     assert.equal(await storage.getBackupStatus(ACCOUNTS), 'current');
+    assert.equal(await storage.getBackupStatus([...ACCOUNTS].reverse()), 'current', 'order does not matter');
+    assert.equal(await storage.getBackupStatus(ACCOUNTS.map(a => ({ ...a, id: 'x' + a.id }))), 'current', 'ids do not matter');
 
-    const changed = [...ACCOUNTS, { ...ACCOUNTS[0], id: 'a3', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
-    assert.equal(await storage.getBackupStatus(changed), 'stale');
+    const added = [...ACCOUNTS, { ...ACCOUNTS[0], id: 'a3', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF' }];
+    assert.equal(await storage.getBackupStatus(added), 'stale');
+});
+
+test('backup status: a change to any backed-up field makes the backup stale', async () => {
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const changes = { issuer: 'Other', accountName: 'bob', secret: 'MFRGGZDFMZTWQ2LKMFRGGZDF', algorithm: 'SHA512', digits: 8, period: 45 };
+    for (const [field, value] of Object.entries(changes)) {
+        const changed = [{ ...ACCOUNTS[0], [field]: value }, ACCOUNTS[1]];
+        assert.equal(await storage.getBackupStatus(changed), 'stale', field);
+    }
+});
+
+test('backup fingerprint is salted: same accounts, different stored value each time', async () => {
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const first = fake.dump().redd2fa_backup_fingerprint;
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    const second = fake.dump().redd2fa_backup_fingerprint;
+    assert.equal(first.version, 2);
+    assert.notEqual(first.salt, second.salt);
+    assert.notEqual(first.hash, second.hash);
+});
+
+test('a fingerprint written by 2.8 or earlier makes the backup stale', async () => {
+    // 2.8 stored a bare hex string over label + secret only, so it cannot say
+    // whether the backup holds this account's TOTP parameters. One fresh
+    // backup is asked for, and then the new format takes over.
+    const essential = ACCOUNTS
+        .map(a => ({ label: a.issuer || a.accountName, secret: a.secret }))
+        .sort((a, b) => a.label.localeCompare(b.label) || a.secret.localeCompare(b.secret));
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(essential)));
+    await globalThis.browser.storage.local.set({
+        redd2fa_backup_fingerprint: Buffer.from(hash).toString('hex'),
+    });
+
+    assert.equal(await storage.getBackupStatus(ACCOUNTS), 'stale');
+    await storage.saveBackupFingerprint(ACCOUNTS);
+    assert.equal(await storage.getBackupStatus(ACCOUNTS), 'current');
 });
 
 test('lockout state persists and clears', async () => {

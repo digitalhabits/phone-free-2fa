@@ -133,6 +133,7 @@ export function normalizeSecret(secret) {
  * Format: otpauth://totp/ISSUER:ACCOUNT?secret=SECRET&issuer=ISSUER&algorithm=SHA1&digits=6&period=30
  *
  * @returns {{ issuer: string, accountName: string, secret: string, algorithm: string, digits: number, period: number } | null}
+ *          null if the URI is not a TOTP URI or uses settings we don't support
  */
 export function parseOtpauthURI(uri) {
     try {
@@ -161,23 +162,25 @@ export function parseOtpauthURI(uri) {
             issuer = issuerParam;
         }
 
-        const algorithmParam = (url.searchParams.get('algorithm') || 'SHA1').toUpperCase();
-        const algorithm = ['SHA1', 'SHA256', 'SHA512'].includes(algorithmParam)
-            ? algorithmParam
-            : 'SHA1';
+        // Absent parameters get the RFC defaults. Parameters that are present
+        // but unsupported make the URI invalid — falling back to a default
+        // would import an account that generates the wrong codes.
+        const algorithm = (url.searchParams.get('algorithm') || 'SHA1').toUpperCase();
+        if (!['SHA1', 'SHA256', 'SHA512'].includes(algorithm)) return null;
 
-        const digitsParam = parseInt(url.searchParams.get('digits') || '6', 10);
-        const digits = digitsParam === 8 ? 8 : 6;
+        const digitsParam = url.searchParams.get('digits') || '6';
+        if (digitsParam !== '6' && digitsParam !== '8') return null;
 
-        const period = parseInt(url.searchParams.get('period') || '30', 10);
+        const periodParam = url.searchParams.get('period') || '30';
+        if (!/^[1-9]\d{0,4}$/.test(periodParam) || Number(periodParam) > 86400) return null;
 
         return {
             issuer,
             accountName,
             secret: normalizeSecret(secret),
             algorithm,
-            digits,
-            period: period > 0 ? period : 30,
+            digits: Number(digitsParam),
+            period: Number(periodParam),
         };
     } catch {
         return null;

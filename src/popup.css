@@ -320,6 +320,72 @@ body {
   border-color: var(--btn-primary-bg);
 }
 
+.restore-no-backup {
+  margin: 0 0 10px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.restore-no-backup > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-weight: 600;
+  color: var(--text-primary);
+  list-style: none;
+}
+
+.restore-no-backup[open] > summary {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.restore-no-backup > summary::-webkit-details-marker {
+  display: none;
+}
+
+.restore-no-backup > summary::after {
+  content: ' \25B8';
+  color: var(--text-secondary);
+}
+
+.restore-no-backup[open] > summary::after {
+  content: ' \25BE';
+}
+
+.restore-no-backup > p {
+  margin: 0;
+  padding: 10px;
+}
+
+.restore-have-backup {
+  margin: 0 0 4px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.lock-restore-link {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 4px;
+  font-size: 0.82em;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.lock-restore-link:hover {
+  color: var(--text-primary);
+}
+
 .lock-security-note {
   display: flex;
   align-items: center;

@@ -11,6 +11,23 @@ let lastActivity = Date.now();
 let autoLockMinutes = 5;
 let lockCheckInterval = null;
 let onLockCallback = null;
+let lockEpoch = 0;
+
+/**
+ * Lock epoch: a counter that goes up on every lock. Anything asynchronous
+ * that handles decrypted data captures it first and checks it after each
+ * await — if the vault was locked in between, the work must stop, otherwise
+ * it would put a key or decrypted accounts back into a locked, wiped panel
+ * (or act on the wiped, empty account list).
+ */
+export function captureLockEpoch() {
+    return lockEpoch;
+}
+
+/** True if no lock has happened since `epoch` was captured. */
+export function isLockEpochCurrent(epoch) {
+    return epoch === lockEpoch;
+}
 
 /**
  * Register a callback to be called when the session auto-locks.
@@ -46,6 +63,7 @@ export function isUnlocked() {
  * Lock the session — wipe the key from memory.
  */
 export function lock() {
+    lockEpoch += 1;
     sessionKey = null;
     stopAutoLockTimer();
 }
@@ -62,6 +80,8 @@ export function touchActivity() {
  */
 export function setAutoLockMinutes(minutes) {
     autoLockMinutes = minutes;
+    // Apply it now: start, stop or re-time the timer of an unlocked session.
+    if (sessionKey !== null) startAutoLockTimer();
 }
 
 /**

@@ -96,13 +96,18 @@ export async function isFirstLaunch() {
  * as a single IndexedDB transaction that aborts on error —
  * toolkit/components/extensions/ExtensionStorageIDB.sys.mjs.)
  */
-async function writeVault(passphrase, accounts, { firstTime }) {
+async function writeVault(passphrase, accounts, { firstTime, replace = false }) {
     return withVaultWriteLock(async () => {
-        const check = firstTime
-            ? async () => {
-                if (!await isFirstLaunch()) throw new Error('A vault already exists; refusing to replace it.');
-            }
-            : assertVaultUnchanged;
+        // `replace` is the restore-from-backup path. The old vault's passphrase
+        // is lost, so there is nothing to compare this write against and nothing
+        // in the old vault worth keeping — it can never be read again.
+        const check = replace
+            ? async () => {}
+            : firstTime
+                ? async () => {
+                    if (!await isFirstLaunch()) throw new Error('A vault already exists; refusing to replace it.');
+                }
+                : assertVaultUnchanged;
         await check();
 
         const salt = generateSalt();
@@ -135,6 +140,21 @@ async function writeVault(passphrase, accounts, { firstTime }) {
  */
 export async function setupPassphrase(passphrase) {
     return writeVault(passphrase, [], { firstTime: true });
+}
+
+/**
+ * Replace the entire vault with `accounts`, sealed under a new passphrase.
+ *
+ * Unlike setupPassphrase() this deliberately overwrites an existing vault. It
+ * is the restore-from-backup path reached from the lock screen, where the
+ * master passphrase has been lost: the stored vault is undecryptable by
+ * definition, so there is nothing to merge and no unchanged-check to make.
+ * Callers must confirm with the user first — this destroys the old vault.
+ *
+ * Returns the derived CryptoKey, leaving the caller unlocked.
+ */
+export async function replaceVault(passphrase, accounts) {
+    return writeVault(passphrase, accounts, { firstTime: false, replace: true });
 }
 
 /**

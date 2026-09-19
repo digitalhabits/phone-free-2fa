@@ -58,10 +58,10 @@ test('reasonable passphrases pass', () => {
 
 // Guard against the rules drifting apart again: the UI must not grow its own
 // length checks or call the strength heuristics directly.
-test('popup.js uses validateNewPassphrase for setup, change-passphrase and export — and nothing else', () => {
+test('popup.js uses validateNewPassphrase for setup, change-passphrase, export and restore — and nothing else', () => {
     const popup = readFileSync(new URL('../src/popup.js', import.meta.url), 'utf8');
-    assert.equal((popup.match(/validateNewPassphrase\(/g) || []).length, 5,
-        'expected: strength meter, setup validation, setup submit, change passphrase, export');
+    assert.equal((popup.match(/validateNewPassphrase\(/g) || []).length, 6,
+        'expected: strength meter, setup validation, setup submit, change passphrase, export, restore from backup');
     assert.ok(!popup.includes('checkPassphraseStrength'), 'popup.js must not call the heuristics directly');
     assert.ok(!/\.length\s*<\s*\d+/.test(popup), 'popup.js must not hard-code a minimum length');
 

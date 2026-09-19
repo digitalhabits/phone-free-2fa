@@ -168,6 +168,7 @@
             </div>
             <p id="unlock-error" class="error-text" style="display: none;"></p>
             <button id="unlock-btn" class="unlock-btn">Unlock</button>
+            <button type="button" id="restore-link-btn" class="lock-restore-link">Forgotten your passphrase?</button>
           </div>
         </div>
 
@@ -535,6 +536,51 @@
       <div class="modal-actions">
         <button id="import-cancel-btn" class="btn-secondary">Cancel</button>
         <button id="import-confirm-btn" class="btn-primary">Import</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========================================
+       Restore From Backup Modal (lock screen)
+       ======================================== -->
+  <div id="restore-modal-overlay" class="modal-overlay" style="display: none;">
+    <div class="modal modal-small">
+      <h3>Forgotten your passphrase?</h3>
+      <p class="modal-desc">There are two cases, and they go different ways.</p>
+      <details class="restore-no-backup">
+        <summary>I have no backup file</summary>
+        <p>Then the accounts stored here cannot be recovered — the encryption has no back door, and we hold no copy of
+          your passphrase. You can start over: remove the extension in your browser's extension settings, install it
+          again, and re-add each account from the service it belongs to (usually under Security or Two-factor
+          authentication). Export a backup once you are set up.</p>
+      </details>
+      <p class="restore-have-backup"><strong>I have a backup file.</strong> Restore from it below. You will need the
+        password you exported it with, and you will set a new master passphrase.</p>
+      <div class="form-group">
+        <label for="restore-file">Backup file</label>
+        <input type="file" id="restore-file" accept=".json">
+      </div>
+      <div class="form-group">
+        <label for="restore-password">Backup password</label>
+        <input type="password" id="restore-password" placeholder="Password used during export" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label for="restore-new-passphrase">New master passphrase</label>
+        <input type="password" id="restore-new-passphrase" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="form-group">
+        <label for="restore-new-passphrase-confirm">Confirm new master passphrase</label>
+        <input type="password" id="restore-new-passphrase-confirm" autocomplete="off" spellcheck="false">
+      </div>
+      <label class="eula-checkbox-row">
+        <input type="checkbox" id="restore-confirm-checkbox">
+        <span class="eula-checkbox-text">I understand the accounts currently stored will be erased, and Touch ID will need setting up again.</span>
+      </label>
+      <p id="restore-error" class="error-text" style="display: none;"></p>
+      <div class="modal-actions">
+        <button id="restore-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="restore-confirm-btn" class="btn-primary">Restore</button>
       </div>
     </div>
   </div>

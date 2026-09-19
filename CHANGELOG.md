@@ -20,6 +20,10 @@ Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/
 
 Fixes from the two September 2026 security reviews. Every fix has a test in `tests/` (`npm test`, no dependencies).
 
+### Added
+
+- **Restore from a backup when you have forgotten your passphrase.** The lock screen now has a **Forgotten your passphrase?** link. With an encrypted backup file and the password you exported it with, you can replace the vault and set a new master passphrase; the accounts already stored are erased, since without the old passphrase they can never be read again. Touch ID has to be set up afterwards. If you have no backup file, the same screen says so plainly and explains how to start over — there is no back door, and we hold no copy of your passphrase. (`replaceVault` in `src/storage.js`, `src/popup.js`, `tests/storage.test.js`)
+
 ### Fixed
 
 - **Encrypted backups lost account settings.** Backups stored only a label and secret, so accounts that don't use the default SHA-1 / 6 digits / 30 seconds generated wrong codes after a restore. Backups now keep every setting (format v3). Older backup files still import. If you have such an account, the app will ask you to make a new backup. (`src/backup.js`, `tests/backup.test.js`)

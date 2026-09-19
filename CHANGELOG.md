@@ -9,10 +9,40 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 1. Bump `version` in `src/manifest.json`.
 2. Add a `## [x.y]` section above (with date and changes).
-3. Commit and push to `main`.
-4. Tag and push: `git tag vX.Y && git push origin vX.Y`
+3. Run `npm test` and go through [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md) in Chrome and Firefox.
+4. Commit and push to `main`.
+5. Tag and push: `git tag vX.Y && git push origin vX.Y`
+6. Approve the **publish** job when GitHub asks (Actions tab) — nothing reaches the stores without this.
 
-Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml), which checks the tag matches `manifest.json`, builds `phone-free-2fa-redd-vX.Y.zip`, and publishes a GitHub Release with that zip attached.
+Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
+
+## [2.9] - unreleased
+
+Fixes from the two September 2026 security reviews. Every fix has a test in `tests/` (`npm test`, no dependencies).
+
+### Fixed
+
+- **Encrypted backups lost account settings.** Backups stored only a label and secret, so accounts that don't use the default SHA-1 / 6 digits / 30 seconds generated wrong codes after a restore. Backups now keep every setting (format v3). Older backup files still import. If you have such an account, the app will ask you to make a new backup. (`src/backup.js`, `tests/backup.test.js`)
+- **Editing an account reset its settings.** Renaming an account that doesn't use the defaults silently switched it back to SHA-1 / 6 digits / 30 seconds. Also found independently by Konrad Kollnig ([#8](https://github.com/digitalhabits/phone-free-2fa/pull/8)), whose handling of renames (keep a separate account name such as `alice@example.com`) is the one used. (`src/accounts.js`, `tests/accounts.test.js`)
+- **With the panel open in two windows, one window could destroy the vault or undo the other's changes.** After one window changed the passphrase, a save from the other (still holding the old key) left a vault that no passphrase could open; and any save from a window with an older copy silently undid the other window's additions. Every save now first checks that the vault in storage is the one this panel last read; if not, nothing is written, the panel locks, and unlocking again shows the current vault. Found and first fixed by Konrad Kollnig ([#7](https://github.com/digitalhabits/phone-free-2fa/pull/7)). (`src/storage.js`, `tests/two-windows.test.js`)
+- **Locking at the wrong moment during a passphrase change could save an empty vault.** The account list is wiped on lock; if that happened while the current passphrase was being checked, the wiped list was re-encrypted as the whole vault. Passphrase change now works from a snapshot and stops if a lock happened. More generally, anything still running when the panel locks (an unlock, a save, a render) now stops instead of putting decrypted data back into a locked panel. Found by Konrad Kollnig ([#7](https://github.com/digitalhabits/phone-free-2fa/pull/7)). (`src/session.js`, `src/popup.js`, `tests/popup-races.test.js`)
+- **Auto-lock ignored setting changes.** Switching from "Never" to a timeout while unlocked started no timer, so the vault stayed open; and with "Never" saved, the first unlock after opening the panel locked again after 10 seconds. Found by Konrad Kollnig ([#9](https://github.com/digitalhabits/phone-free-2fa/pull/9)). (`src/session.js`, `tests/session.test.js`)
+- **Changing the passphrase could lock the vault for good.** The new passphrase check and the re-encrypted accounts were saved in two steps; a crash between them left a vault that neither passphrase could open. Both are now saved in a single all-or-nothing write, after checking the re-encrypted vault opens. (`src/storage.js`, `tests/storage.test.js`)
+- **Imports could silently change an account's settings, or wedge the app.** An `otpauth://` URI with settings the app doesn't support (for example 7 digits) was imported with the defaults instead, giving wrong codes; it is now skipped and the import says how many entries were skipped. Every imported account, from any file type, is now checked before anything is saved, and one invalid entry refuses the whole backup file. (`cleanImportedAccount` in `src/accounts.js`, `tests/accounts.test.js`)
+- Touch ID setup could fail when the panel was open in two windows.
+- Enabling Touch ID from Settings no longer strips spaces from the ends of the passphrase you type.
+
+### Security
+
+- **Hardened the release pipeline.** Store credentials now live in an approval-gated `store-release` environment, in a job separate from the build; GitHub Actions are pinned to commit SHAs (and the third-party release action is replaced by GitHub's own CLI); the store publisher is installed from a committed lockfile with install scripts disabled instead of `npx`; releases are built from tested code only. The zip is reproducible and its SHA-256 is published, so anyone can verify a release against its tag. (`.github/workflows/release.yml`, `tools/`)
+- **Removed the `tabs` permission.** It was never needed (opening and closing the Touch ID tab works without it), and it caused the "read your browsing history" install warning. The extension now asks for `storage` and `sidePanel` only.
+- **Network access is now blocked by the browser, not just by us.** An explicit Content Security Policy sets `connect-src 'none'` and allows scripts only from the extension package. (`src/manifest.json`, `tests/manifest.test.js`)
+- **Closing the panel during Touch ID setup could leave the vault unlocked.** Locking is paused while the Touch ID tab is open, but nothing resumed it if the panel was closed in the meantime — with auto-lock set to "Never", the vault stayed open indefinitely. The vault now locks as soon as the Touch ID tab finishes or closes with the panel hidden, after 2 minutes hidden regardless, and a key is never installed into a panel that was closed while it was being derived. (`src/lock-policy.js`, `tests/lock-policy.test.js`)
+- Clicking "Not now" on the Touch ID offer now clears the master passphrase from memory straight away, instead of keeping it until lock. Enabling Touch ID from Settings asks for it again.
+- README no longer claims biometric keys always stay in the security chip: that depends on the passkey provider.
+- Account IDs now come from `crypto.randomUUID()` instead of `Math.random()`.
+- Backup passwords now have to pass the same strength rules as the master passphrase (they only had a 12-character minimum). A backup file can be copied and attacked offline, so its password matters at least as much. Setup, change-passphrase and export share one rule set. (`validateNewPassphrase` in `src/passphrase-strength.js`, `tests/passphrase-policy.test.js`)
+- The "backup out of date" fingerprint kept outside the encrypted vault is now salted, and covers all account settings. A fingerprint written by 2.8 or earlier counts as out of date, so you will be asked for one fresh backup. (`src/storage.js`)
 
 ## [2.8] - 2026-07-31
 

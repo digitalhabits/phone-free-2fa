@@ -24,6 +24,12 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 
 ## 3. "Not now" forgets the passphrase
 
+**Precondition: Touch ID must never have been set up in this profile.** Disabling Touch ID is not enough. `disableBiometric()` only sets a `disabled` flag and keeps the wrapped passphrase in storage, so Settings → Enable Touch ID re-enables from the stored credential without ever asking — that is section 1's second item, not this one. Only a passphrase change clears the data. So either run section 7 first and come back here, or wipe it by hand in the panel's DevTools console:
+
+```js
+chrome.storage.local.remove('redd2fa_biometric')
+```
+
 - [ ] Unlock with the passphrase, click **Not now** on the Touch ID offer. Settings → Enable Touch ID. → It asks for your passphrase again.
 
 ## 4. Two windows
@@ -53,5 +59,7 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 - [ ] Import a backup file made with 2.7. → Imports; accounts are 6 digits / 30 seconds.
 
 ## 7. Passphrase change
+
+Changing the passphrase clears the stored biometric data, so this section leaves the profile in the state section 3 needs. If you could not run section 3 earlier, run it now.
 
 - [ ] Change the passphrase. Lock. → Old passphrase refused, new one works, all accounts present. Touch ID asks to be set up again.

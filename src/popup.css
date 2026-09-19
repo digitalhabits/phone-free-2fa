@@ -321,12 +321,45 @@ body {
 }
 
 .restore-no-backup {
-  margin: 4px 0 0;
-  padding: 12px 0 0;
+  margin: 0 0 10px;
   font-size: 0.85em;
   line-height: 1.5;
   color: var(--text-secondary);
-  border-top: 1px solid var(--border-color);
+}
+
+.restore-no-backup > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-weight: 600;
+  color: var(--text-primary);
+  list-style: none;
+}
+
+.restore-no-backup > summary::-webkit-details-marker {
+  display: none;
+}
+
+.restore-no-backup > summary::after {
+  content: ' \25B8';
+  color: var(--text-secondary);
+}
+
+.restore-no-backup[open] > summary::after {
+  content: ' \25BE';
+}
+
+.restore-no-backup > p {
+  margin: 8px 0 0;
+  padding: 0 10px;
+}
+
+.restore-have-backup {
+  margin: 0 0 4px;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .lock-restore-link {

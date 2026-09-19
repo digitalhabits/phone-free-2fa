@@ -320,6 +320,15 @@ body {
   border-color: var(--btn-primary-bg);
 }
 
+.restore-no-backup {
+  margin: 4px 0 0;
+  padding: 12px 0 0;
+  font-size: 0.85em;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border-color);
+}
+
 .lock-restore-link {
   display: block;
   width: 100%;

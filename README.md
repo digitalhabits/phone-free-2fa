@@ -1,170 +1,126 @@
 # Digital Habits: Phone-Free 2FA
 
-Simple, secure, local-only authenticator browser extension for time-based one-time passwords (TOTP). Lets you use your computer for 2FA, so you can put your phone away when you need to focus.
+Use two-factor authentication without reaching for your phone. Phone-Free 2FA is a free, open-source authenticator that lives in your browser sidebar and generates the login codes used by services such as Microsoft 365.
 
-**Digital Habits: Phone-Free 2FA** is **open source**, developed by the [Centre for Digital Habits](https://digitalhabits.org), with computer scientists at the University of Oxford (Dr Ulrik Lyngs) and the University of Maastricht (Dr Konrad Kollnig, Henry Tari).
+Your accounts stay encrypted on your computer. The extension has no server, sends nothing over the network, and does not require an account.
 
-See [CHANGELOG.md](./CHANGELOG.md) for release history.
+Developed by the [Centre for Digital Habits](https://digitalhabits.org), with computer scientists at the University of Oxford (Dr Ulrik Lyngs) and Maastricht University (Dr Konrad Kollnig and Henry Tari).
 
-- **Chrome, Edge (& other Chromium browsers e.g., Brave)**: Install from the Chrome Web Store: https://chromewebstore.google.com/detail/redd-2fa-phone-free-authe/dhkhbjppnoabmglidgfpndfghbhlkgbn
-- **Firefox**: Install from the Firefox Add-ons store: https://addons.mozilla.org/en-US/firefox/addon/redd-2fa-simple-authenticator
-- **Safari**: not necessary: the native Passwords application (newer Macs) or Safari itself (older Macs, go to Safari > Settings > Passwords) can generate TOTP codes.
+## Install
 
-## Features
+- **Chrome, Edge, Brave and other Chromium browsers:** [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/redd-2fa-phone-free-authe/dhkhbjppnoabmglidgfpndfghbhlkgbn)
+- **Firefox:** [Install from Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/redd-2fa-simple-authenticator)
+- **Safari:** recent versions of macOS already support verification codes in the Passwords app. On older Macs, see Safari > Settings > Passwords.
 
-### Security
-- **Strong encryption** — AES-256-GCM via Web Crypto API with PBKDF2 key derivation (600,000 iterations, SHA-256)
-- **Local-only** — never makes network requests; all data stays on your device. The browser enforces this: the manifest's Content Security Policy sets `connect-src 'none'`
-- **Minimal permissions** — only requests `storage` and `sidePanel`; no host permissions, no remote code
-- **Master passphrase** — all account data encrypted at rest; decrypted only while unlocked
-- **Passphrase never stored** — only a derived verification token is persisted
-- **Memory safety** — encryption key, decrypted TOTP secrets, and in-flight modal inputs (passphrases, secrets) are all wiped from memory on lock or when the side panel is closed
-- **Auto-lock** — configurable inactivity timeout (1, 5, 15, 30 minutes, or never) while the side panel is open. Closing the panel wipes the key immediately, so the timeout only matters when the panel is left open and idle
-- **Lockout on failed attempts** — progressive cooldown (5s → 30s → 5min), persisted across panel restarts. This deters guessing through the extension UI; an attacker with disk access can copy the encrypted blob and attack it offline at GPU speeds, so passphrase strength remains the primary defense
-- **Clipboard auto-clear** — copied codes are removed from clipboard after 30 seconds
-- **Constant-time comparison** — passphrase hash verification uses XOR-based comparison to prevent timing attacks
-- **Strength-checked passphrases** — new passphrases are validated with hand-rolled, fully-auditable checks for common-password substrings, keyboard walks, repeating patterns, and low character diversity (see `src/passphrase-strength.js`)
-- **No secrets in DOM** — TOTP secrets are kept in memory only; never written to HTML attributes
+## Why use Phone-Free 2FA?
 
-### Biometric Unlock
-- **Touch ID / Windows Hello** — optional biometric unlock via WebAuthn
-- **As strong as your passkey provider** — the passphrase is encrypted with a key derived from your passkey (WebAuthn PRF → HKDF → AES-256-GCM); the extension never stores that key. With Chrome's built-in authenticator on a Mac, the passkey stays in the security chip. With a syncing provider (Google Password Manager, iCloud Keychain, 1Password), it is synced under that provider's end-to-end encryption, so biometric unlock is then as strong as that account
-- **Windows note** — Windows Hello does not currently support the WebAuthn PRF extension required for secure key derivation from a browser extension. Windows users should select **Google Password Manager** (or another password manager like 1Password) as their passkey provider when prompted, instead of "Windows Hello"
-- **Firefox note** — Firefox does not currently allow the WebAuthn / Credentials API from extension origins (`moz-extension://`), so biometric unlock is unavailable on Firefox. The Touch ID button is hidden there; use your master passphrase as normal. Tracked upstream at [bugzilla 1462088](https://bugzilla.mozilla.org/show_bug.cgi?id=1462088)
-- Biometric data is automatically cleared when passphrase is changed
+- **Stay focused:** get login codes from the browser sidebar without finding or unlocking your phone.
+- **Keep data local:** account details never leave the browser and are encrypted with your master passphrase.
+- **Work with existing services:** use any account that offers standard authenticator-app codes (TOTP).
+- **Keep control:** export an encrypted backup or move your accounts to another authenticator at any time.
+- **Use a transparent tool:** the project is open source and has no adverts, analytics or online account.
 
-### Usability
-- **Cross-browser** — Chrome, Firefox, and Edge (Manifest V3)
-- **Dark / light mode** — auto-detects system preference, or set manually
-- **Search & filter** — search accounts by label
-- **Copy on click** — tap any account card to copy its current code
-- **Progress ring** — visual countdown showing time remaining for each code
-- **Change passphrase** — re-encrypts all accounts with a new key
-- **Backup / restore** — encrypted JSON export keeping everything an account needs to generate the same codes again: issuer, account name, secret, algorithm, digits and period; import supports these backups (including those written by earlier versions), and plain `otpauth://` URI text files from other authenticator apps
-- **Backup status** — warning badge in the top bar and on the Export button if no backup has been exported, or if accounts have changed since the last export
-- **Plain text URI export** — export accounts as standard `otpauth://` URIs for migrating to another authenticator app
-- **Account migration** — view secret keys in the edit view for manual transfer, or use plain text URI export
-- **Data loss warning** — clear warning during setup about passphrase recovery
+## Getting started
+
+1. Install the extension and select its toolbar icon to open the sidebar.
+2. Create a strong master passphrase. There is no central recovery, so store it safely.
+3. When a service asks you to set up an authenticator app, add the secret key it provides to Phone-Free 2FA.
+4. Select an account in the sidebar to copy its current login code.
+5. Export an encrypted backup, and make a new backup whenever your accounts change.
+
+You can optionally enable Touch ID in Chrome or Edge on supported devices. Firefox users unlock with their master passphrase. On Windows, biometric unlock requires a passkey provider that supports the necessary browser feature, such as Google Password Manager or 1Password; Windows Hello alone does not currently support it.
 
 ## Screenshots
 
 <p align="center">
-  <img src="./docs/screenshots/R2FA-git-1.png" alt="Digital Habits: Phone-Free 2FA — 1" width="49%" />
-  <img src="./docs/screenshots/R2FA-git-3.png" alt="Digital Habits: Phone-Free 2FA — 2" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-1.png" alt="Unlocking Phone-Free 2FA with Touch ID or a master passphrase" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-3.png" alt="Adding an account to Phone-Free 2FA" width="49%" />
 </p>
 <p align="center">
-  <img src="./docs/screenshots/R2FA-git-4.png" alt="Digital Habits: Phone-Free 2FA — 3" width="49%" />
-  <img src="./docs/screenshots/R2FA-git-5.png" alt="Digital Habits: Phone-Free 2FA — 4" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-4.png" alt="A current login code and setup instructions in the Phone-Free 2FA sidebar" width="49%" />
+  <img src="./docs/screenshots/R2FA-git-5.png" alt="Phone-Free 2FA security and backup settings" width="49%" />
 </p>
 
-## How It Works
+## What you can do
 
-1. On first launch, you create a master passphrase (minimum 12 characters)
-2. A 256-bit encryption key is derived from your passphrase using PBKDF2 (600k iterations)
-3. All account data is encrypted with AES-256-GCM and stored in `browser.storage.local`
-4. When you unlock, the key is re-derived and held in memory for the duration of your session
-5. TOTP codes are generated using HMAC-SHA1/256/512 per RFC 6238 — entirely via Web Crypto API
-6. On lock (manual, auto-lock timeout, or popup close), the key is wiped from memory
+- Keep multiple accounts together and find them with search.
+- Copy a code by selecting its account, with a countdown showing when it will change.
+- Choose a light, dark or system-matched theme.
+- Set an automatic lock time and change your master passphrase.
+- Export and restore encrypted backups.
+- View secret keys or export standard records when moving to another authenticator.
 
-```mermaid
-flowchart TD
-    click(["Click extension icon"]) --> background.js["background.js<br>Opens side panel (Chrome)<br>or sidebar (Firefox)"]
-    background.js --> popup.js["popup.js<br>UI controller"]
-    popup.js --> Unlock
+## For organisations and IT departments
 
-    subgraph Unlock
-        passphrase(["Enter passphrase"]) --> |"passphrase"| crypto.js["crypto.js<br>PBKDF2 600k iter → AES-256-GCM"]
-        touchid(["Touch ID / Windows Hello"]) --> biometric.js["biometric.js<br>WebAuthn PRF (Hardware Key)"] --> |"recovered passphrase"| crypto.js
-    end
+Phone-Free 2FA can help staff who need TOTP codes during computer-based work but should not have to keep a personal or work phone beside them. It can be installed from the public browser stores or deployed through your organisation's standard browser extension policy.
 
-    crypto.js --> session.js["session.js<br>Holds encryption key in memory<br>Auto-lock timer"]
-    session.js --> |"encryption key"| storage.js["storage.js<br>Encrypted accounts in<br>browser.storage.local"]
-    storage.js --> |"decrypted secrets"| totp.js["totp.js<br>HMAC-SHA1/256/512 → 6-digit code"]
-    totp.js --> |"codes"| popup.js
+### What IT teams should know
 
-    session.js -. "lock / timeout / panel close" .-> Unlock
-```
+- **No service to operate:** there is no backend, tenant, subscription or administrator account.
+- **No data transfer:** the extension requests no access to websites and its security policy blocks network connections.
+- **Small permission set:** it uses browser storage and the browser sidebar only.
+- **Local responsibility:** each browser profile has its own encrypted vault. There is no central recovery, remote reset, cross-device sync or administrative view of users' accounts.
+- **User-managed continuity:** staff should keep their master passphrase safe and maintain an up-to-date encrypted backup under your organisation's approved storage policy.
+- **Easy exit:** users can export standard `otpauth://` records for migration to another authenticator.
 
-## Loading the Extension
+For managed deployment, the Chrome extension ID is `dhkhbjppnoabmglidgfpndfghbhlkgbn` and the Firefox extension ID is `redd-2fa@reddfocus.org`.
 
-No build step required — the extension runs as vanilla ES modules, and every file that ships is meant to be human-readable.
+Before organisation-wide deployment, confirm that your identity providers support TOTP and decide how staff should store passphrases and encrypted backups. Because the product deliberately has no central administration, it may not suit organisations that require managed credential recovery, central audit logs or remote revocation.
 
-### Chrome / Edge
+## Security and privacy at a glance
 
-1. Go to `chrome://extensions` (or `edge://extensions`)
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the `src/` folder
+- Account details are encrypted at rest with a key derived from the user's master passphrase.
+- The vault locks when the sidebar closes and can also lock after a configurable period of inactivity.
+- Failed unlock attempts trigger progressively longer delays.
+- Copied codes are cleared from the clipboard after 30 seconds.
+- The extension contains no remote code, analytics or runtime dependencies.
+- Backups remain encrypted; plain-text export is available only when a user deliberately chooses it for migration.
 
-### Firefox
+No local authenticator can protect accounts if its computer and master passphrase are both compromised. A strong, unique passphrase and a current backup remain important.
 
-1. Go to `about:debugging#/runtime/this-firefox`
-2. Click "Load Temporary Add-on"
-3. Select `src/manifest.json`
+## Frequently asked questions
 
-## Security Model
+### Is Phone-Free 2FA safe to use?
 
-| Layer | Implementation |
-|-------|---------------|
-| Encryption | AES-256-GCM (Web Crypto API) |
-| Key derivation | PBKDF2 · 600,000 iterations · SHA-256 |
-| Passphrase verification | Constant-time XOR comparison of derived hashes |
-| Biometric key wrapping | WebAuthn PRF → HKDF → AES-256-GCM (as strong as the passkey provider) |
-| TOTP generation | HMAC-SHA1/256/512 (Web Crypto API), RFC 6238 |
-| Network access | None — no host permissions, and blocked by the browser via CSP `connect-src 'none'` |
-| Storage | `browser.storage.local` only |
-| Runtime dependencies | Zero (no build step, no bundler, no minified blobs — every shipped file is readable source) |
+It is designed to keep TOTP accounts safe on a trusted computer. Account details are encrypted with your master passphrase, the extension makes no network connections, and it cannot read the websites you visit. Its source code and security design are public.
 
-## Tech Stack
+No authenticator can remove every risk. Someone who controls both your computer and your master passphrase could access your codes, and a weak passphrase makes an offline attack on copied encrypted data easier. Keep your computer updated and locked, use a strong passphrase that you do not reuse elsewhere, and maintain an encrypted backup. Technical reviewers can inspect the [security model and implementation](docs/technical-reference.md).
 
-- Vanilla JavaScript (ES modules, no transpilation)
-- Vanilla CSS with custom properties (light/dark themes)
-- Web Crypto API for all cryptographic operations
-- Custom TOTP engine implementing RFC 6238 / RFC 4226
-- Minimal browser API shim (no webextension-polyfill)
-- Manifest V3
+### What happens if I forget my master passphrase?
 
-## Project Structure
+Phone-Free 2FA cannot reveal or reset it: the project has no server, user account or recovery key.
 
-```
-src/
-├── manifest.json       # Extension manifest (MV3)
-├── popup.html          # Main UI (opens in the side panel / sidebar)
-├── popup.css           # Styles (light/dark themes)
-├── popup.js            # UI controller (events, TOTP refresh)
-├── background.js       # Service worker (opens the side panel / sidebar)
-├── crypto.js           # Encryption/decryption (AES-GCM, PBKDF2)
-├── totp.js             # TOTP engine (Base32, HMAC, RFC 6238)
-├── storage.js          # Encrypted storage manager + backup fingerprinting
-├── backup.js           # Encrypted backup file format (create / read)
-├── accounts.js         # Account objects: edit form, import validation
-├── lock-policy.js      # When to lock because the panel was hidden
-├── session.js          # In-memory session & auto-lock
-├── biometric.js        # WebAuthn biometric unlock (PRF hardware integration)
-├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
-├── biometric-tab.js    # Controller for the biometric tab
-├── browser.js          # Minimal browser API shim
-├── passphrase-strength.js  # Passphrase policy + hand-rolled strength check
-├── step1-3.png         # In-app setup instruction images
-└── icons/              # Extension icons
+- **If you have an encrypted Phone-Free 2FA backup and know its backup password:** select **Forgotten your passphrase?** on the unlock screen. You can restore the backup and choose a new master passphrase. This replaces the inaccessible vault currently stored in that browser profile.
+- **If you do not have a usable backup:** the stored accounts cannot be recovered. Remove and reinstall the extension, then use each service's account-recovery process to re-enrol 2FA. Any recovery codes supplied by those services may help.
 
-tests/                  # node --test, no dependencies — never shipped
-tools/build-zip.sh      # Reproducible release zip (src/ only)
-tools/publish/          # Store publisher, pinned by lockfile — release-time only
-```
+Export an encrypted backup after setup and whenever your accounts change. Store its password separately and safely.
 
-### Tests
+### Is my master passphrase or account data sent anywhere?
 
-```bash
-npm test
-```
+No. The master passphrase is not stored, and account data remains encrypted in the browser's local extension storage. The extension has no host permissions, analytics or network access.
 
-Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`, `lock-policy.js`, `passphrase-strength.js`) so it can be tested directly: RFC 6238 vectors, backup round-trips for every algorithm / digits / period, storage-failure injection during passphrase change, two panels writing to one vault, and the lock-on-hide rules. `popup.js` itself runs under a small fake DOM (`tests/helpers/fake-dom.js`) to test what happens when the panel locks, or another window writes, while a handler is waiting. Guard tests on the manifest fail if a permission or a weakened CSP directive ever appears. What needs a real browser is in [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
+### What happens if my computer is lost, replaced or damaged?
 
-### Verifying a release
+Install Phone-Free 2FA on the replacement computer and import your encrypted backup using its backup password. Without a usable backup, you must recover and re-enrol 2FA separately with each service.
 
-The zip on each [GitHub Release](https://github.com/digitalhabits/phone-free-2fa/releases) is the exact file submitted to the stores, and the release notes list its SHA-256. To rebuild it: check out the tag and run `tools/build-zip.sh` — the same commit gives the same bytes. Store submission runs in a separate, approval-gated job that installs its one tool from a committed lockfile with install scripts disabled ([`release.yml`](.github/workflows/release.yml)).
+### Does it synchronise between computers or browsers?
 
-### Auditability
+No. Each browser profile has its own local vault. Move accounts using an encrypted backup, or use the migration export if you are deliberately transferring them to another authenticator.
 
-Every file that ships in the extension is plain, readable source — no bundlers, no minification, no build step, no vendored third-party code. The passphrase strength check (`src/passphrase-strength.js`) is ~190 lines of commented JavaScript covering: a `"password"` substring check (including leet-speak variants), an exact-match lookup against a 10-entry constant derived from the SecLists top-10k list filtered to `length >= 12`, keyboard-walk detection, repeating-pattern detection, and a minimum unique-character count. The derivation of the 10-entry list is documented inline with a one-line `curl | awk` command an auditor can run to reproduce it.
+### Which accounts work with Phone-Free 2FA?
+
+It works with services that provide standard time-based authenticator codes, also called TOTP. During setup, choose the service's option for an authenticator app and enter the secret key it provides. It does not receive push-approval requests from products such as Microsoft Authenticator.
+
+### Does it replace my password or passkey?
+
+No. It supplies the changing verification code used as a second factor. Your account password, passkey and the service's own recovery methods remain separate.
+
+## Technical information
+
+Security reviewers, developers and administrators who want implementation details can read the [technical reference](docs/technical-reference.md). It covers the security model, architecture, source layout, local development, tests and reproducible release verification.
+
+See the [changelog](CHANGELOG.md) for release history and the [manual test checklist](docs/manual-test-checklist.md) for browser-level verification.
+
+## Contributing
+
+Issues and contributions are welcome through this repository. Please do not include real 2FA secrets, backup files or master passphrases in bug reports.

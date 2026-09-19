@@ -15,6 +15,56 @@ const STORAGE_KEY_BACKUP_FINGERPRINT = 'redd2fa_backup_fingerprint';
 const STORAGE_KEY_LOCKOUT = 'redd2fa_lockout';
 const SCHEMA_VERSION = 1;
 
+// ----------------------------------------
+// Several panels, one vault
+//
+// The panel can be open in several browser windows. Each has its own key and
+// its own copy of the accounts, and none of them sees the others' changes. A
+// panel whose copy is out of date must never write it back:
+//   - after another panel changed the passphrase, a save with the old key
+//     would leave new meta next to old-key data — a vault nobody can open;
+//   - after another panel saved, a save from the older copy would silently
+//     undo that panel's change.
+//
+// So each page remembers the vault it last read or wrote — the meta salt
+// (new on every passphrase change) and the data IV (new on every save) — and
+// every write first checks that this is still what is in storage. If not it
+// throws StaleVaultError and writes nothing; the UI locks, and unlocking
+// again reads the current vault. No stored field is needed for this, so
+// vaults from older versions are covered as they are.
+//
+// Writes from different panels are queued with the Web Locks API, so the
+// check and the write cannot interleave. (Approach from Konrad Kollnig's
+// PR #7, extended from passphrase changes to every save.)
+// ----------------------------------------
+const VAULT_WRITE_LOCK = 'redd2fa-vault-write';
+
+/** What this page believes is in storage: { salt, iv }. null until unlock/setup. */
+let vaultView = null;
+
+export class StaleVaultError extends Error {
+    constructor() {
+        super('Vault changed in another window. Please unlock again.');
+        this.name = 'StaleVaultError';
+    }
+}
+
+/** Run `write` while no other panel is writing. */
+async function withVaultWriteLock(write) {
+    const locks = globalThis.navigator?.locks;
+    return locks?.request ? locks.request(VAULT_WRITE_LOCK, write) : write();
+}
+
+/** Throw StaleVaultError unless storage still holds the vault this page last saw. */
+async function assertVaultUnchanged() {
+    const stored = await browser.storage.local.get([STORAGE_KEY_META, STORAGE_KEY_DATA]);
+    const salt = stored[STORAGE_KEY_META]?.salt;
+    const iv = stored[STORAGE_KEY_DATA]?.iv ?? null;
+    if (!vaultView || vaultView.salt !== salt || vaultView.iv !== iv) {
+        throw new StaleVaultError();
+    }
+}
+
 /** Default settings */
 export const DEFAULT_SETTINGS = {
     autoLockMinutes: 5,
@@ -33,26 +83,59 @@ export async function isFirstLaunch() {
 }
 
 /**
+ * Create a vault generation — fresh salt, verifier and re-encrypted accounts —
+ * and commit it in ONE storage write.
+ *
+ * Meta (salt + verifier) and data (ciphertext) only make sense as a pair:
+ * meta from one passphrase next to data from another is a vault that no
+ * passphrase can open. Writing them separately leaves exactly that state if
+ * the browser dies or the second write fails. A single set() call is applied
+ * as a whole, so storage always holds a complete old or complete new vault.
+ *
+ * (Checked in browser source, Sept 2026: Chrome applies one set() as a single
+ * LevelDB WriteBatch — components/value_store/leveldb_value_store.cc; Firefox
+ * as a single IndexedDB transaction that aborts on error —
+ * toolkit/components/extensions/ExtensionStorageIDB.sys.mjs.)
+ */
+async function writeVault(passphrase, accounts, { firstTime }) {
+    return withVaultWriteLock(async () => {
+        const check = firstTime
+            ? async () => {
+                if (!await isFirstLaunch()) throw new Error('A vault already exists; refusing to replace it.');
+            }
+            : assertVaultUnchanged;
+        await check();
+
+        const salt = generateSalt();
+        const key = await deriveKey(passphrase, salt);
+        const passphraseHash = await createPassphraseHash(passphrase, salt);
+
+        const plaintext = JSON.stringify(accounts);
+        const encrypted = await encrypt(plaintext, key);
+
+        // Prove the new blob opens before it replaces the old one.
+        if (await decrypt(encrypted.iv, encrypted.ciphertext, key) !== plaintext) {
+            throw new Error('Re-encrypted vault failed verification; nothing was written.');
+        }
+
+        // Key derivation takes a while. Where Web Locks is missing, another
+        // panel could have written meanwhile — check again right before writing.
+        await check();
+        await browser.storage.local.set({
+            [STORAGE_KEY_META]: { salt, passphraseHash, version: SCHEMA_VERSION },
+            [STORAGE_KEY_DATA]: encrypted,
+        });
+        vaultView = { salt, iv: encrypted.iv };
+        return key;
+    });
+}
+
+/**
  * Set up encryption for the first time with a new passphrase.
- * Generates salt, derives key, stores empty encrypted accounts.
+ * Stores an empty encrypted vault. Returns the derived CryptoKey.
  */
 export async function setupPassphrase(passphrase) {
-    const salt = generateSalt();
-    const key = await deriveKey(passphrase, salt);
-    const passphraseHash = await createPassphraseHash(passphrase, salt);
-
-    // Store meta
-    const meta = {
-        salt,
-        passphraseHash,
-        version: SCHEMA_VERSION,
-    };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
-
-    // Store empty accounts
-    await saveAccounts([], key);
-
-    return key;
+    return writeVault(passphrase, [], { firstTime: true });
 }
 
 /**
@@ -68,35 +151,34 @@ export async function unlockWithPassphrase(passphrase) {
     const isValid = await verifyPassphrase(passphrase, meta.salt, meta.passphraseHash);
     if (!isValid) return null;
 
-    return deriveKey(passphrase, meta.salt);
+    const key = await deriveKey(passphrase, meta.salt);
+    // Start a new view of the vault — unless this was only a re-check of the
+    // passphrase for the vault this page already has open.
+    if (vaultView?.salt !== meta.salt) vaultView = { salt: meta.salt, iv: undefined };
+    return key;
 }
 
 /**
  * Change the master passphrase. Re-encrypts all accounts with a new key.
- * Returns the new CryptoKey.
+ * All-or-nothing — see writeVault(). Returns the new CryptoKey.
  */
 export async function changePassphrase(accounts, newPassphrase) {
-    const salt = generateSalt();
-    const newKey = await deriveKey(newPassphrase, salt);
-    const passphraseHash = await createPassphraseHash(newPassphrase, salt);
-
-    // Update meta with new salt and hash
-    const meta = { salt, passphraseHash, version: SCHEMA_VERSION };
-    await browser.storage.local.set({ [STORAGE_KEY_META]: meta });
-
-    // Re-encrypt accounts with the new key
-    await saveAccounts(accounts, newKey);
-
-    return newKey;
+    return writeVault(newPassphrase, accounts, { firstTime: false });
 }
 
 /**
  * Save accounts (encrypted) to storage.
+ * Throws StaleVaultError, writing nothing, if another panel changed the vault
+ * since this page last read or wrote it.
  */
 export async function saveAccounts(accounts, key) {
-    const plaintext = JSON.stringify(accounts);
-    const encrypted = await encrypt(plaintext, key);
-    await browser.storage.local.set({ [STORAGE_KEY_DATA]: encrypted });
+    return withVaultWriteLock(async () => {
+        await assertVaultUnchanged();
+        const encrypted = await encrypt(JSON.stringify(accounts), key);
+        await assertVaultUnchanged(); // see writeVault()
+        await browser.storage.local.set({ [STORAGE_KEY_DATA]: encrypted });
+        vaultView.iv = encrypted.iv;
+    });
 }
 
 /**
@@ -106,11 +188,17 @@ export async function loadAccounts(key) {
     const result = await browser.storage.local.get(STORAGE_KEY_DATA);
     const blob = result[STORAGE_KEY_DATA];
 
-    if (!blob) return [];
+    if (!blob) {
+        if (vaultView) vaultView.iv = null;
+        return [];
+    }
 
     try {
         const plaintext = await decrypt(blob.iv, blob.ciphertext, key);
-        return JSON.parse(plaintext);
+        const accounts = JSON.parse(plaintext);
+        // Only a blob this page could decrypt becomes what it may overwrite.
+        if (vaultView) vaultView.iv = blob.iv;
+        return accounts;
     } catch {
         throw new Error('Failed to decrypt accounts. Wrong passphrase?');
     }

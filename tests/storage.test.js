@@ -63,6 +63,46 @@ test('changePassphrase: new passphrase opens the vault, old one does not', async
     assert.deepEqual(await storage.loadAccounts(newKey), ACCOUNTS);
 });
 
+// A failed or interrupted write must never leave a vault that no passphrase
+// can open. "Crash at write n" is simulated by making the n-th storage write
+// fail; with a single write there is no in-between state to be left in.
+test('changePassphrase is all-or-nothing: a failure at any write leaves an openable vault', async () => {
+    const NEW = 'walnut-harbour-lantern-ninety';
+    for (const n of [1, 2, 3]) {
+        fake.reset();
+        const key = await storage.setupPassphrase(PASSPHRASE);
+        await storage.saveAccounts(ACCOUNTS, key);
+
+        fake.failOnSet(n);
+        const failed = await storage.changePassphrase(ACCOUNTS, NEW).then(() => false, () => true);
+        fake.clearFailure();
+
+        const oldKey = await storage.unlockWithPassphrase(PASSPHRASE);
+        const newKey = await storage.unlockWithPassphrase(NEW);
+        assert.ok(!!oldKey !== !!newKey, `write ${n}: exactly one passphrase must unlock`);
+        assert.equal(!!oldKey, failed, `write ${n}: old passphrase still valid exactly when the change failed`);
+        assert.deepEqual(await storage.loadAccounts(oldKey || newKey), ACCOUNTS, `write ${n}: accounts must decrypt`);
+    }
+});
+
+test('changePassphrase and setupPassphrase commit meta and data in a single write', async () => {
+    fake.failOnSet(Infinity); // just resets the counter
+    await storage.setupPassphrase(PASSPHRASE);
+    assert.equal(fake.setCallCount(), 1);
+
+    fake.failOnSet(Infinity);
+    await storage.changePassphrase(ACCOUNTS, 'walnut-harbour-lantern-ninety');
+    assert.equal(fake.setCallCount(), 1);
+});
+
+test('a failed setup leaves a clean first-launch state', async () => {
+    fake.failOnSet(1);
+    await assert.rejects(() => storage.setupPassphrase(PASSPHRASE));
+    fake.clearFailure();
+    assert.equal(await storage.isFirstLaunch(), true);
+    assert.deepEqual(fake.dump(), {});
+});
+
 test('backup status: never → current → stale', async () => {
     assert.equal(await storage.getBackupStatus([]), 'current'); // nothing to back up
     assert.equal(await storage.getBackupStatus(ACCOUNTS), 'never');

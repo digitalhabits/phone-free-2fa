@@ -159,3 +159,37 @@ test('lockout state persists and clears', async () => {
     await storage.clearLockoutState();
     assert.deepEqual(await storage.loadLockoutState(), { failedAttempts: 0, lockoutUntil: 0 });
 });
+
+// --- replaceVault: restore from backup when the passphrase is lost ---
+
+test('replaceVault overwrites a vault whose passphrase is lost', async () => {
+    const OLD = 'old-forgotten-passphrase-42';
+    const NEW = 'fresh-restored-passphrase-42';
+
+    const oldKey = await storage.setupPassphrase(OLD);
+    await storage.saveAccounts(ACCOUNTS, oldKey);
+
+    // setupPassphrase refuses — that is why replaceVault exists.
+    await assert.rejects(() => storage.setupPassphrase(NEW), /already exists/);
+
+    const restored = [ACCOUNTS[1]];
+    const newKey = await storage.replaceVault(NEW, restored);
+
+    assert.deepEqual(await storage.loadAccounts(newKey), restored);
+    assert.equal(await storage.unlockWithPassphrase(OLD), null, 'old passphrase must be dead');
+    assert.notEqual(await storage.unlockWithPassphrase(NEW), null, 'new passphrase must work');
+});
+
+test('replaceVault leaves a vault readable after a reload', async () => {
+    const NEW = 'fresh-restored-passphrase-42';
+    await storage.setupPassphrase('old-forgotten-passphrase-42');
+    await storage.replaceVault(NEW, ACCOUNTS);
+
+    const key = await storage.unlockWithPassphrase(NEW);
+    assert.deepEqual(await storage.loadAccounts(key), ACCOUNTS);
+});
+
+test('replaceVault works on a fresh profile too', async () => {
+    const key = await storage.replaceVault('fresh-restored-passphrase-42', ACCOUNTS);
+    assert.deepEqual(await storage.loadAccounts(key), ACCOUNTS);
+});

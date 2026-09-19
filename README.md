@@ -138,6 +138,7 @@ src/
 ├── storage.js          # Encrypted storage manager + backup fingerprinting
 ├── backup.js           # Encrypted backup file format (create / read)
 ├── accounts.js         # Account objects: edit form, import validation
+├── lock-policy.js      # When to lock because the panel was hidden
 ├── session.js          # In-memory session & auto-lock
 ├── biometric.js        # WebAuthn biometric unlock (PRF hardware integration)
 ├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
@@ -158,7 +159,7 @@ tools/publish/          # Store publisher, pinned by lockfile — release-time o
 npm test
 ```
 
-Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`) so it can be tested directly: RFC 6238 vectors against the published vectors, encryption round-trips, the encrypted storage manager, and backup round-trips for every algorithm / digits / period. What needs a real browser is checked by hand.
+Uses Node's built-in test runner (Node 22+) — there is nothing to install. The security-relevant logic lives in small modules with no UI code (`crypto.js`, `totp.js`, `storage.js`, `backup.js`, `accounts.js`, `lock-policy.js`, `passphrase-strength.js`) so it can be tested directly: RFC 6238 vectors, backup round-trips for every algorithm / digits / period, storage-failure injection during passphrase change, two panels writing to one vault, and the lock-on-hide rules. `popup.js` itself runs under a small fake DOM (`tests/helpers/fake-dom.js`) to test what happens when the panel locks, or another window writes, while a handler is waiting. Guard tests on the manifest fail if a permission or a weakened CSP directive ever appears. What needs a real browser is in [`docs/manual-test-checklist.md`](docs/manual-test-checklist.md).
 
 ### Verifying a release
 

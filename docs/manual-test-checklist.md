@@ -68,7 +68,7 @@ Changing the passphrase clears the stored biometric data, so this section leaves
 
 This is the only path that destroys a vault, and it is reachable without the master passphrase by design. Test it on a profile you can afford to lose, and export a backup first.
 
-- [ ] Lock. → The lock screen shows **Forgotten your passphrase? Restore from a backup** under the Unlock button.
+- [ ] Lock. → The lock screen shows **Lost your passphrase? Restore from a backup file** under the Unlock button.
 - [ ] Open it, pick a backup, enter the **wrong** backup password. → Refused; the old vault is untouched and the old passphrase still unlocks.
 - [ ] Get the backup password wrong five times. → The same progressive lockout as the passphrase (5s, then 30s after 10, 5min after 15). Failed unlocks and failed restores share one counter.
 - [ ] Try to restore with a weak new master passphrase, or with the two new-passphrase fields differing, or with the confirmation checkbox unticked. → Each refused, nothing written.

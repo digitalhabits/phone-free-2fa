@@ -63,3 +63,15 @@ chrome.storage.local.remove('redd2fa_biometric')
 Changing the passphrase clears the stored biometric data, so this section leaves the profile in the state section 3 needs. If you could not run section 3 earlier, run it now.
 
 - [ ] Change the passphrase. Lock. → Old passphrase refused, new one works, all accounts present. Touch ID asks to be set up again.
+
+## 8. Restore from backup (lock screen)
+
+This is the only path that destroys a vault, and it is reachable without the master passphrase by design. Test it on a profile you can afford to lose, and export a backup first.
+
+- [ ] Lock. → The lock screen shows **Forgotten your passphrase? Restore from a backup** under the Unlock button.
+- [ ] Open it, pick a backup, enter the **wrong** backup password. → Refused; the old vault is untouched and the old passphrase still unlocks.
+- [ ] Get the backup password wrong five times. → The same progressive lockout as the passphrase (5s, then 30s after 10, 5min after 15). Failed unlocks and failed restores share one counter.
+- [ ] Try to restore with a weak new master passphrase, or with the two new-passphrase fields differing, or with the confirmation checkbox unticked. → Each refused, nothing written.
+- [ ] Restore properly: correct backup password, strong new passphrase, checkbox ticked. → The panel unlocks straight into the accounts from the backup, the codes match another authenticator, and the toast says to set up Touch ID again.
+- [ ] Lock. → Only the new passphrase works; the old one is refused. Touch ID is gone and asks to be set up from scratch (not "re-enabled" — see section 3).
+- [ ] Start a restore, type a backup password and a new passphrase, then close the side panel without finishing. Reopen. → Lock screen, restore modal closed, every field empty.

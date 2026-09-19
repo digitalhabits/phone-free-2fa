@@ -126,7 +126,7 @@ test('popup.js wiring: every ceremony end and every unlock goes through the poli
     // installed into a panel that was closed while the key was being derived.
     const keySets = (popup.match(/setSessionKey\(/g) || []).length;
     const reported = (popup.match(/hideLockPolicy\.onUnlocked\(\)/g) || []).length;
-    assert.equal(keySets, 5, 'setup, passphrase unlock, Touch ID inline, Touch ID tab, change passphrase');
+    assert.equal(keySets, 6, 'setup, passphrase unlock, Touch ID inline, Touch ID tab, change passphrase, restore from backup');
     assert.equal(reported, keySets);
     assert.ok(popup.includes('hideLockPolicy.onHide()'));
     assert.ok(popup.includes('hideLockPolicy.onShow()'));

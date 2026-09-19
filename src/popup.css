@@ -320,6 +320,25 @@ body {
   border-color: var(--btn-primary-bg);
 }
 
+.lock-restore-link {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 4px;
+  font-size: 0.82em;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.lock-restore-link:hover {
+  color: var(--text-primary);
+}
+
 .lock-security-note {
   display: flex;
   align-items: center;

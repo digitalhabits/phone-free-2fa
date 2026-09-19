@@ -325,16 +325,21 @@ body {
   font-size: 0.85em;
   line-height: 1.5;
   color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .restore-no-backup > summary {
   cursor: pointer;
   padding: 8px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
   font-weight: 600;
   color: var(--text-primary);
   list-style: none;
+}
+
+.restore-no-backup[open] > summary {
+  border-bottom: 1px solid var(--border-color);
 }
 
 .restore-no-backup > summary::-webkit-details-marker {
@@ -351,8 +356,8 @@ body {
 }
 
 .restore-no-backup > p {
-  margin: 8px 0 0;
-  padding: 0 10px;
+  margin: 0;
+  padding: 10px;
 }
 
 .restore-have-backup {

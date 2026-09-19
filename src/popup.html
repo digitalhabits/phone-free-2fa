@@ -557,9 +557,6 @@
       </details>
       <p class="restore-have-backup"><strong>I have a backup file.</strong> Restore from it below. You will need the
         password you exported it with, and you will set a new master passphrase.</p>
-      <p class="export-plain-warning"><strong>This erases the accounts stored here.</strong> They are already
-        unreadable without your passphrase, so only what is in this backup can be recovered. Touch ID will need to be
-        set up again.</p>
       <div class="form-group">
         <label for="restore-file">Backup file</label>
         <input type="file" id="restore-file" accept=".json">
@@ -576,6 +573,8 @@
         <label for="restore-new-passphrase-confirm">Confirm new master passphrase</label>
         <input type="password" id="restore-new-passphrase-confirm" autocomplete="off" spellcheck="false">
       </div>
+      <p class="export-plain-warning"><strong>This erases the accounts stored here</strong> — only what is in the
+        backup comes back, and Touch ID must be set up again.</p>
       <label class="eula-checkbox-row">
         <input type="checkbox" id="restore-confirm-checkbox">
         <span class="eula-checkbox-text">I understand the accounts currently stored will be erased.</span>

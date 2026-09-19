@@ -14,8 +14,8 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ### Security
 - **Strong encryption** — AES-256-GCM via Web Crypto API with PBKDF2 key derivation (600,000 iterations, SHA-256)
-- **Local-only** — never makes network requests; all data stays on your device
-- **Minimal permissions** — only requests `storage`, `tabs`, and `sidePanel`; no host permissions, no remote code
+- **Local-only** — never makes network requests; all data stays on your device. The browser enforces this: the manifest's Content Security Policy sets `connect-src 'none'`
+- **Minimal permissions** — only requests `storage` and `sidePanel`; no host permissions, no remote code
 - **Master passphrase** — all account data encrypted at rest; decrypted only while unlocked
 - **Passphrase never stored** — only a derived verification token is persisted
 - **Memory safety** — encryption key, decrypted TOTP secrets, and in-flight modal inputs (passphrases, secrets) are all wiped from memory on lock or when the side panel is closed
@@ -28,7 +28,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for release history.
 
 ### Biometric Unlock
 - **Touch ID / Windows Hello** — optional biometric unlock via WebAuthn
-- **Hardware-backed security** — passphrase is encrypted with a PRF-derived key (HKDF → AES-256-GCM) directly from the security chip; no keys are ever stored on disk
+- **As strong as your passkey provider** — the passphrase is encrypted with a key derived from your passkey (WebAuthn PRF → HKDF → AES-256-GCM); the extension never stores that key. With Chrome's built-in authenticator on a Mac, the passkey stays in the security chip. With a syncing provider (Google Password Manager, iCloud Keychain, 1Password), it is synced under that provider's end-to-end encryption, so biometric unlock is then as strong as that account
 - **Windows note** — Windows Hello does not currently support the WebAuthn PRF extension required for secure key derivation from a browser extension. Windows users should select **Google Password Manager** (or another password manager like 1Password) as their passkey provider when prompted, instead of "Windows Hello"
 - **Firefox note** — Firefox does not currently allow the WebAuthn / Credentials API from extension origins (`moz-extension://`), so biometric unlock is unavailable on Firefox. The Touch ID button is hidden there; use your master passphrase as normal. Tracked upstream at [bugzilla 1462088](https://bugzilla.mozilla.org/show_bug.cgi?id=1462088)
 - Biometric data is automatically cleared when passphrase is changed
@@ -109,9 +109,9 @@ No build step required — the extension runs as vanilla ES modules, and every f
 | Encryption | AES-256-GCM (Web Crypto API) |
 | Key derivation | PBKDF2 · 600,000 iterations · SHA-256 |
 | Passphrase verification | Constant-time XOR comparison of derived hashes |
-| Biometric key wrapping | WebAuthn PRF → HKDF → AES-256-GCM (Hardware-backed only) |
+| Biometric key wrapping | WebAuthn PRF → HKDF → AES-256-GCM (as strong as the passkey provider) |
 | TOTP generation | HMAC-SHA1/256/512 (Web Crypto API), RFC 6238 |
-| Network access | None — no host permissions declared |
+| Network access | None — no host permissions, and blocked by the browser via CSP `connect-src 'none'` |
 | Storage | `browser.storage.local` only |
 | Runtime dependencies | Zero (no build step, no bundler, no minified blobs — every shipped file is readable source) |
 
@@ -143,7 +143,7 @@ src/
 ├── biometric-tab.html  # Dedicated tab for WebAuthn prompts (Chrome can't show them from side panels)
 ├── biometric-tab.js    # Controller for the biometric tab
 ├── browser.js          # Minimal browser API shim
-├── passphrase-strength.js  # Hand-rolled strength check (~190 lines)
+├── passphrase-strength.js  # Passphrase policy + hand-rolled strength check
 ├── step1-3.png         # In-app setup instruction images
 └── icons/              # Extension icons
 

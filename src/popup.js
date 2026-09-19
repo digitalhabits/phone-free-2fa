@@ -11,7 +11,7 @@ import { generateTOTP, getRemainingSeconds, buildOtpauthURI, validateBase32 } fr
 import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState } from './storage.js';
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
-import { checkPassphraseStrength } from './passphrase-strength.js';
+import { validateNewPassphrase, MIN_PASSPHRASE_LENGTH } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
 import { accountFromForm, accountLabel, cleanImportedAccount, accountsFromUriList } from './accounts.js';
 
@@ -29,23 +29,6 @@ let settings;
 let totpInterval = null;
 let editingAccountId = null;
 let pendingPassphrase = null; // held briefly for biometric registration
-
-
-// ========================================
-// Passphrase validation helpers
-// ========================================
-const MIN_PASSPHRASE_LENGTH = 12;
-
-// Example phrases shown in the setup tips — must not be used verbatim.
-const EXAMPLE_PASSPHRASES = [
-    'correct-horse-battery-staple',
-    'My dog loves chasing squirrels in the park!',
-];
-
-function isExamplePassphrase(passphrase) {
-    const normalized = passphrase.trim().toLowerCase();
-    return EXAMPLE_PASSPHRASES.some((ex) => ex.toLowerCase() === normalized);
-}
 
 
 // ========================================
@@ -172,7 +155,10 @@ function flashCopyButton(btn) {
 }
 
 function setBackupBadgeLabel(badge, text) {
-    badge.innerHTML = `${WARNING_TRIANGLE_ICON}<span>${text}</span>`;
+    badge.innerHTML = WARNING_TRIANGLE_ICON;
+    const label = document.createElement('span');
+    label.textContent = text;
+    badge.appendChild(label);
 }
 
 function setFooterVisible(visible) {
@@ -234,14 +220,12 @@ function updateSetupStrengthMeter(passphrase) {
     }
 
     let percent = Math.min((passphrase.length / MIN_PASSPHRASE_LENGTH) * 55, 55);
-    const strength = passphrase.length >= MIN_PASSPHRASE_LENGTH
-        ? checkPassphraseStrength(passphrase)
-        : { ok: false };
 
     if (passphrase.length >= MIN_PASSPHRASE_LENGTH) {
-        percent = strength.ok ? 100 : 38;
-        setupStrengthFill.classList.toggle('is-weak', !strength.ok);
-        setupStrengthFill.classList.toggle('is-strong', strength.ok);
+        const weak = validateNewPassphrase(passphrase).reason === 'weak';
+        percent = weak ? 38 : 100;
+        setupStrengthFill.classList.toggle('is-weak', weak);
+        setupStrengthFill.classList.toggle('is-strong', !weak);
     } else {
         setupStrengthFill.classList.remove('is-weak', 'is-strong');
     }
@@ -249,11 +233,11 @@ function updateSetupStrengthMeter(passphrase) {
     setupStrengthFill.style.width = `${percent}%`;
 }
 
-function getSetupButtonLabel(passphrase, confirm, tooShort, isExample, strengthOk, matches) {
+function getSetupButtonLabel(passphrase, confirm, policy, matches) {
     if (passphrase.length === 0) return 'Enter a passphrase to continue';
-    if (tooShort) return 'Use at least 12 characters';
-    if (isExample) return 'Choose your own passphrase';
-    if (!strengthOk) return 'Choose a stronger passphrase';
+    if (policy.reason === 'too-short') return `Use at least ${MIN_PASSPHRASE_LENGTH} characters`;
+    if (policy.reason === 'example') return 'Choose your own passphrase';
+    if (policy.reason === 'weak') return 'Choose a stronger passphrase';
     if (confirm.length === 0) return 'Confirm your passphrase';
     if (!matches) return 'Passphrases must match';
     return 'Create & Unlock';
@@ -262,17 +246,15 @@ function getSetupButtonLabel(passphrase, confirm, tooShort, isExample, strengthO
 function validateSetup() {
     const p = setupPassphraseInput.value;
     const c = setupPassphraseConfirm.value;
-    const tooShort = p.length < MIN_PASSPHRASE_LENGTH;
-    const isExample = p.length > 0 && isExamplePassphrase(p);
-    const strength = p.length >= MIN_PASSPHRASE_LENGTH ? checkPassphraseStrength(p) : { ok: false };
+    const policy = validateNewPassphrase(p);
     const matches = p === c;
 
     updateSetupStrengthMeter(p);
-    setupBtn.disabled = tooShort || isExample || !strength.ok || !matches || c.length === 0;
-    setupBtn.textContent = getSetupButtonLabel(p, c, tooShort, isExample, strength.ok, matches);
+    setupBtn.disabled = !policy.ok || !matches || c.length === 0;
+    setupBtn.textContent = getSetupButtonLabel(p, c, policy, matches);
 
-    if (p.length >= MIN_PASSPHRASE_LENGTH && !strength.ok) {
-        showElement(setupError, strength.message);
+    if (policy.reason === 'weak') {
+        showElement(setupError, policy.message);
     } else {
         hideElement(setupError);
     }
@@ -726,18 +708,15 @@ function initHelpTabs() {
 async function handleSetup() {
     const passphrase = setupPassphraseInput.value;
 
-    if (passphrase.length < MIN_PASSPHRASE_LENGTH) {
-        showElement(setupError, `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`);
+    const policy = validateNewPassphrase(passphrase);
+    if (!policy.ok) {
+        showElement(setupError, policy.reason === 'too-short'
+            ? `Passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`
+            : policy.message);
         return;
     }
-    if (isExamplePassphrase(passphrase)) {
-        showElement(setupError, 'Please choose your own passphrase, not the example phrase.');
-        return;
-    }
-
-    const strength = checkPassphraseStrength(passphrase);
-    if (!strength.ok) {
-        showElement(setupError, strength.message);
+    if (passphrase !== setupPassphraseConfirm.value) {
+        showElement(setupError, 'Passphrases must match.');
         return;
     }
 
@@ -1113,13 +1092,10 @@ function initBiometricMessaging() {
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (!message?.type) return;
         // Defence in depth: only honour messages from our currently-tracked tab.
-        if (!isTrustedBiometricSender(sender)) {
-            if (message.type === 'biometric-setup-request-passphrase') {
-                sendResponse({ error: 'unauthorized' });
-                return false;
-            }
-            return;
-        }
+        // Stay silent rather than answering 'unauthorized': with the panel open
+        // in two windows, the first response wins, and a refusal from the
+        // panel that didn't open the tab would beat the real answer.
+        if (!isTrustedBiometricSender(sender)) return;
 
         switch (message.type) {
             case 'biometric-setup-request-passphrase':
@@ -1275,7 +1251,7 @@ function initBiometricListeners() {
 
     $('biometric-enable-btn').addEventListener('click', async () => {
         if (!pendingPassphrase) {
-            const entered = $('biometric-setup-passphrase').value.trim();
+            const entered = $('biometric-setup-passphrase').value;
             if (!entered) return;
             const key = await unlockWithPassphrase(entered);
             if (!key) {
@@ -1306,8 +1282,9 @@ function initBiometricListeners() {
         if ($('biometric-dont-ask-checkbox').checked) {
             await browser.storage.local.set({ redd2fa_biometric_dont_ask: true });
         }
-        // Keep pendingPassphrase for this session so settings can enable Touch ID
-        // without another unlock. It is cleared on lock via wipeSensitiveState().
+        // Don't keep the master passphrase in memory once the offer is declined.
+        // Enabling Touch ID from Settings later asks for it again.
+        pendingPassphrase = null;
         if (pendingPassphraseTimer) { clearTimeout(pendingPassphraseTimer); pendingPassphraseTimer = null; }
         biometricPromptOverlay.style.display = 'none';
     });
@@ -1790,22 +1767,15 @@ async function handleChangePassphrase() {
         return;
     }
 
-    if (newPw.length < MIN_PASSPHRASE_LENGTH) {
-        showElement(errorEl, `New passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`);
-        return;
-    }
-    if (isExamplePassphrase(newPw)) {
-        showElement(errorEl, 'Please choose your own passphrase, not one of the example phrases.');
+    const policy = validateNewPassphrase(newPw);
+    if (!policy.ok) {
+        showElement(errorEl, policy.reason === 'too-short'
+            ? `New passphrase must be at least ${MIN_PASSPHRASE_LENGTH} characters.`
+            : policy.message);
         return;
     }
     if (newPw !== newPwConfirm) {
         showElement(errorEl, 'New passphrases do not match.');
-        return;
-    }
-
-    const strength = checkPassphraseStrength(newPw);
-    if (!strength.ok) {
-        showElement(errorEl, strength.message);
         return;
     }
 
@@ -1854,8 +1824,13 @@ async function handleExport() {
     const pw = exportPassword.value;
     const pwConfirm = exportPasswordConfirm.value;
 
-    if (pw.length < 12) {
-        showElement(exportError, 'Password must be at least 12 characters.');
+    // Same rules as the master passphrase: the backup file is an offline
+    // copy of every secret, and nothing rate-limits guesses against it.
+    const policy = validateNewPassphrase(pw);
+    if (!policy.ok) {
+        showElement(exportError, policy.reason === 'too-short'
+            ? `Password must be at least ${MIN_PASSPHRASE_LENGTH} characters.`
+            : policy.message);
         return;
     }
     if (pw !== pwConfirm) {

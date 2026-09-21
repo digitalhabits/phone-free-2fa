@@ -1638,6 +1638,10 @@ body {
 /* ========================================
    Settings Dropdown
    ======================================== */
+body:has(.settings-dropdown[style*="block"]) {
+  overflow-y: hidden;
+}
+
 .settings-dropdown {
   position: fixed;
   top: 0;

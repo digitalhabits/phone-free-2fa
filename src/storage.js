@@ -6,7 +6,7 @@
  */
 
 import browser from './browser.js';
-import { encrypt, decrypt, generateSalt, createPassphraseHash, deriveKey, verifyPassphrase } from './crypto.js';
+import { encrypt, decrypt, generateSalt, createPassphraseHash, deriveKey, verifyPassphrase, passphraseForms } from './crypto.js';
 
 const STORAGE_KEY_DATA = 'redd2fa_data';
 const STORAGE_KEY_META = 'redd2fa_meta';
@@ -111,6 +111,7 @@ async function writeVault(passphrase, accounts, { firstTime, replace = false }) 
         await check();
 
         const salt = generateSalt();
+        passphrase = passphrase.normalize('NFC');
         const key = await deriveKey(passphrase, salt);
         const passphraseHash = await createPassphraseHash(passphrase, salt);
 
@@ -167,10 +168,14 @@ export async function unlockWithPassphrase(passphrase) {
 
     if (!meta) return null;
 
-    const isValid = await verifyPassphrase(passphrase, meta.salt, meta.passphraseHash);
-    if (!isValid) return null;
+    let form;
+    for (form of passphraseForms(passphrase)) {
+        if (await verifyPassphrase(form, meta.salt, meta.passphraseHash)) break;
+        form = null;
+    }
+    if (!form) return null;
 
-    const key = await deriveKey(passphrase, meta.salt);
+    const key = await deriveKey(form, meta.salt);
     // Start a new view of the vault — unless this was only a re-check of the
     // passphrase for the vault this page already has open.
     if (vaultView?.salt !== meta.salt) vaultView = { salt: meta.salt, iv: undefined };

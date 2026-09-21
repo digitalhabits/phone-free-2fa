@@ -55,6 +55,15 @@ function generateIV() {
 }
 
 /**
+ * "é" is one character on Windows (NFC) but e + combining accent on macOS (NFD),
+ * so the same passphrase gives different bytes. New vaults and backups use NFC;
+ * opening tries NFC, then the typed and NFD forms for ones written before this.
+ */
+export function passphraseForms(passphrase) {
+    return [...new Set([passphrase.normalize('NFC'), passphrase, passphrase.normalize('NFD')])];
+}
+
+/**
  * Derive an AES-256-GCM key from a passphrase using PBKDF2.
  * Returns a CryptoKey that can be used for encrypt/decrypt.
  */

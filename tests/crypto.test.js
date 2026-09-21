@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateSalt, deriveKey, encrypt, decrypt, createPassphraseHash, verifyPassphrase } from '../src/crypto.js';
+import { generateSalt, deriveKey, encrypt, decrypt, createPassphraseHash, verifyPassphrase, passphraseForms } from '../src/crypto.js';
 
 const PASSPHRASE = 'plum-orbit-candle-seventeen';
 
@@ -64,4 +64,15 @@ test('verifyPassphrase accepts the right passphrase only', async () => {
     assert.equal(await verifyPassphrase(PASSPHRASE, salt, hash), true);
     assert.equal(await verifyPassphrase(PASSPHRASE + ' ', salt, hash), false);
     assert.equal(await verifyPassphrase(PASSPHRASE, generateSalt(), hash), false);
+});
+
+// 'é' typed as one character (NFC) and as 'e' + combining acute (NFD).
+const NFC = 'café-orbit-candle-seventeen';
+const NFD = 'café-orbit-candle-seventeen';
+
+test('passphraseForms tries NFC first, then the typed and NFD forms, without duplicates', () => {
+    assert.notEqual(NFC, NFD);
+    assert.deepEqual(passphraseForms(NFD), [NFC, NFD]);
+    assert.deepEqual(passphraseForms(NFC), [NFC, NFD]);
+    assert.deepEqual(passphraseForms(PASSPHRASE), [PASSPHRASE]);
 });

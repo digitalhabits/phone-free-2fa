@@ -16,7 +16,7 @@
  *   v1:           the full internal account objects
  */
 
-import { generateSalt, deriveKey, encrypt, decrypt } from './crypto.js';
+import { generateSalt, deriveKey, encrypt, decrypt, passphraseForms } from './crypto.js';
 import { cleanImportedAccount } from './accounts.js';
 
 export const BACKUP_FORMAT = 'redd-2fa-backup';
@@ -55,7 +55,7 @@ export async function createBackup(accounts, password) {
     });
 
     const salt = generateSalt();
-    const key = await deriveKey(password, salt);
+    const key = await deriveKey(password.normalize('NFC'), salt);
     const encrypted = await encrypt(JSON.stringify(entries), key);
 
     return {
@@ -85,10 +85,10 @@ export async function readBackup(data, password) {
     }
 
     let plaintext;
-    try {
-        const key = await deriveKey(password, data.salt);
-        plaintext = await decrypt(data.iv, data.ciphertext, key);
-    } catch {
+    for (const form of passphraseForms(password)) {
+        try { plaintext = await decrypt(data.iv, data.ciphertext, await deriveKey(form, data.salt)); break; } catch { }
+    }
+    if (plaintext === undefined) {
         throw new BackupError('wrong-password', 'Wrong password or corrupted backup.');
     }
 

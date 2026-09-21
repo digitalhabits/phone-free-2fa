@@ -155,3 +155,20 @@ test('isEncryptedBackup', async () => {
     assert.equal(isEncryptedBackup([{ issuer: 'x' }]), false);
     assert.equal(isEncryptedBackup(null), false);
 });
+
+// 'é' typed as one character (NFC) and as 'e' + combining acute (NFD).
+const NFC = 'café-harbour-lantern-ninety';
+const NFD = 'café-harbour-lantern-ninety';
+
+test('a backup opens with either spelling of an accented password, including one written before normalisation', async () => {
+    const accounts = everyCombination();
+    const fresh = await createBackup(accounts, NFD);
+    assert.equal((await readBackup(fresh, NFC)).length, accounts.length);
+    assert.equal((await readBackup(fresh, NFD)).length, accounts.length);
+
+    const salt = generateSalt();
+    const entries = accounts.map(({ id, ...a }) => a);
+    const legacy = { format: 'redd-2fa-backup', version: 3, salt, ...(await encrypt(JSON.stringify(entries), await deriveKey(NFD, salt))) };
+    assert.equal((await readBackup(legacy, NFC)).length, accounts.length);
+    await assert.rejects(async () => readBackup(legacy, 'wrong-password-entirely'), { code: 'wrong-password' });
+});

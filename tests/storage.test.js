@@ -6,6 +6,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { installFakeBrowser } from './helpers/fake-browser.js';
+import { generateSalt, deriveKey, createPassphraseHash, encrypt } from '../src/crypto.js';
 
 // Must be installed before storage.js (→ browser.js) is first imported.
 const fake = installFakeBrowser();
@@ -192,4 +193,25 @@ test('replaceVault leaves a vault readable after a reload', async () => {
 test('replaceVault works on a fresh profile too', async () => {
     const key = await storage.replaceVault('fresh-restored-passphrase-42', ACCOUNTS);
     assert.deepEqual(await storage.loadAccounts(key), ACCOUNTS);
+});
+
+// 'é' typed as one character (NFC) and as 'e' + combining acute (NFD).
+const NFC = 'café-orbit-candle-seventeen';
+const NFD = 'café-orbit-candle-seventeen';
+
+test('a vault made under either spelling of an accented passphrase, before or after normalisation, unlocks with both', async () => {
+    const unlocks = async () => {
+        for (const spelling of [NFC, NFD]) assert.deepEqual(await storage.loadAccounts(await storage.unlockWithPassphrase(spelling)), ACCOUNTS);
+        assert.equal(await storage.unlockWithPassphrase('wrong-passphrase-entirely'), null);
+    };
+    await storage.saveAccounts(ACCOUNTS, await storage.setupPassphrase(NFD));
+    await unlocks();
+
+    fake.reset(); // a vault written before normalisation: raw NFD bytes
+    const salt = generateSalt();
+    await globalThis.browser.storage.local.set({
+        redd2fa_meta: { salt, passphraseHash: await createPassphraseHash(NFD, salt), version: 1 },
+        redd2fa_data: await encrypt(JSON.stringify(ACCOUNTS), await deriveKey(NFD, salt)),
+    });
+    await unlocks();
 });

@@ -607,6 +607,8 @@ function initEventListeners() {
     $('import-confirm-btn').addEventListener('click', handleImport);
     $('restore-link-btn').addEventListener('click', openRestoreModal);
     $('restore-cancel-btn').addEventListener('click', closeRestoreModal);
+    const noBackupBtn = $('restore-no-backup-btn');
+    noBackupBtn.addEventListener('click', () => noBackupBtn.ariaExpanded = noBackupBtn.ariaExpanded !== 'true');
     restoreConfirmBtn.addEventListener('click', handleRestore);
     importFile.addEventListener('change', () => {
         const file = importFile.files?.[0];
@@ -1972,6 +1974,7 @@ function resetRestoreModal() {
     restoreNewPassphrase.value = '';
     restoreNewPassphraseConfirm.value = '';
     restoreConfirmCheckbox.checked = false;
+    $('restore-no-backup-btn').ariaExpanded = 'false';
     hideElement(restoreError);
 }
 

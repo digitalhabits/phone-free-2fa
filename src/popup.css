@@ -321,50 +321,47 @@ body {
 }
 
 .restore-no-backup {
-  margin: 0 0 10px;
-  font-size: 0.85em;
-  line-height: 1.5;
-  color: var(--text-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.restore-no-backup > summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: -6px 0 14px;
+  padding: 0;
+  border: 0;
+  background: none;
   cursor: pointer;
-  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.85em;
   font-weight: 600;
-  color: var(--text-primary);
-  list-style: none;
-}
-
-.restore-no-backup[open] > summary {
-  border-bottom: 1px solid var(--border-color);
-}
-
-.restore-no-backup > summary::-webkit-details-marker {
-  display: none;
-}
-
-.restore-no-backup > summary::after {
-  content: ' \25B8';
   color: var(--text-secondary);
 }
 
-.restore-no-backup[open] > summary::after {
-  content: ' \25BE';
+.restore-no-backup svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.25s ease;
 }
 
-.restore-no-backup > p {
-  margin: 0;
-  padding: 10px;
+.restore-no-backup[aria-expanded="true"] svg {
+  transform: rotate(90deg);
 }
 
-.restore-have-backup {
-  margin: 0 0 4px;
+.restore-no-backup-text {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: -10px;
+  transition: grid-template-rows 0.25s ease;
   font-size: 0.85em;
   line-height: 1.5;
-  color: var(--text-secondary);
+}
+
+.restore-no-backup[aria-expanded="true"] + .restore-no-backup-text {
+  grid-template-rows: 1fr;
+}
+
+.restore-no-backup-text > p {
+  margin: 0;
+  padding-bottom: 14px;
+  overflow: hidden;
 }
 
 .lock-restore-link {
@@ -1850,18 +1847,27 @@ button.backup-badge:hover {
 .modal {
   width: 100%;
   max-width: 450px;
-  max-height: 90vh;
+  max-height: calc(100vh - 32px);
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-hover) transparent;
   background-color: var(--modal-bg);
-  border: 1px solid var(--border-color);
+  /* A border never scrolls: content is cut off inside the box, not at its edge. */
+  border: 12px solid var(--modal-bg);
+  outline: 1px solid var(--border-color);
+  outline-offset: -1px;
   border-radius: var(--radius-card);
-  padding: 22px;
+  padding: 10px;
   box-shadow: var(--modal-shadow);
   position: relative;
 }
 
 .modal-small {
   max-width: 350px;
+}
+
+#restore-modal-overlay .modal {
+  max-width: 400px;
 }
 
 .modal-header {

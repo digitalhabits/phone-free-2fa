@@ -16,7 +16,7 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
-## [2.9] - unreleased
+## [2.9] - 2026-09-21
 
 Fixes from the two September 2026 security reviews. Every fix has a test in `tests/` (`npm test`, no dependencies).
 
@@ -35,6 +35,15 @@ Fixes from the two September 2026 security reviews. Every fix has a test in `tes
 - **Imports could silently change an account's settings, or wedge the app.** An `otpauth://` URI with settings the app doesn't support (for example 7 digits) was imported with the defaults instead, giving wrong codes; it is now skipped and the import says how many entries were skipped. Every imported account, from any file type, is now checked before anything is saved, and one invalid entry refuses the whole backup file. (`cleanImportedAccount` in `src/accounts.js`, `tests/accounts.test.js`)
 - Touch ID setup could fail when the panel was open in two windows.
 - Enabling Touch ID from Settings no longer strips spaces from the ends of the passphrase you type.
+- **An accented passphrase could refuse to open a backup on another computer.** macOS types a letter like é as a base letter plus an accent mark, Windows and Linux as one character, so the same passphrase gave different bytes. Keys are now derived from one normalised form; vaults and backups written before this change still open with either spelling. (`passphraseForms` in `src/crypto.js`, `tests/crypto.test.js`)
+
+### Changed
+
+- Improved the design of the "Forgotten your passphrase?" dialog.
+- Opening Settings no longer leaves the page behind it scrollable, so there is one scrollbar instead of two.
+- In a narrow panel the **Add account** label wraps left-aligned and the button shrinks to fit it.
+- The passkey created for Touch ID is now labelled `phone-free-2fa-user` in your passkey provider. Existing passkeys keep the old label until Touch ID is set up again.
+- The passphrase field shown when enabling Touch ID no longer invites the browser's password manager to save it.
 
 ### Security
 

@@ -46,7 +46,7 @@ export async function registerBiometric(passphrase) {
             rp: { name: 'Phone-Free 2FA' },
             user: {
                 id: crypto.getRandomValues(new Uint8Array(16)),
-                name: 'redd-2fa-user',
+                name: 'phone-free-2fa-user',
                 displayName: 'Phone-Free 2FA',
             },
             pubKeyCredParams: [

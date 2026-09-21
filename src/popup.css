@@ -791,7 +791,7 @@ body {
 .copy-secret-btn.is-copied,
 .copy-secret-btn.is-copied:hover {
   background-color: var(--bg-accent-soft);
-  border-color: var(--accent-secondary);
+  border-color: var(--accent-primary);
   color: var(--accent-primary);
 }
 
@@ -1202,7 +1202,7 @@ body {
 .account-copy-btn.is-copied,
 .account-copy-btn.is-copied:hover {
   background-color: var(--bg-accent-soft);
-  border-color: var(--accent-secondary);
+  border-color: var(--accent-primary);
   color: var(--accent-primary);
 }
 

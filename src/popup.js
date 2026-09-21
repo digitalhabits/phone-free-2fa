@@ -445,6 +445,10 @@ function initEventListeners() {
 
     // Add account
     $('add-account-btn').addEventListener('click', () => openAccountModal());
+    const addLabel = $('add-account-label');
+    const hugAddLabel = () => { addLabel.style.width = ''; addLabel.style.width = addLabel.offsetHeight > 20 ? 'min-content' : ''; };
+    window.addEventListener('resize', hugAddLabel);
+    hugAddLabel();
 
 
 

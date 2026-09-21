@@ -959,6 +959,8 @@ body {
   padding: 0 12px;
   gap: 8px;
   color: #000;
+  justify-content: flex-start;
+  text-align: left;
 }
 
 #add-account-btn:hover {

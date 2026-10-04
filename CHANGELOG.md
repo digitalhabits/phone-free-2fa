@@ -16,6 +16,16 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
+## [2.9.1] - 2026-10-04
+
+### Fixed
+
+- **The logo was hard to see in dark mode.** Its navy phone outline all but
+  disappeared on dark backgrounds. On the lock, setup and welcome screens the
+  logo now follows the theme colours, and the toolbar icon sits on the same
+  cream tile as on [digitalhabits.org](https://digitalhabits.org), so it stays
+  visible on dark browser themes and in the side panel. ([#23](https://github.com/digitalhabits/phone-free-2fa/pull/23))
+
 ## [2.9] - 2026-09-21
 
 Fixes from the two September 2026 security reviews. Every fix has a test in `tests/` (`npm test`, no dependencies).

@@ -185,18 +185,24 @@ jobs:
         run: |
           set -euo pipefail
           ARGS=()
-          if [ -n "${CHROME_SERVICE_ACCOUNT_PRIVATE_KEY}" ]; then
-            ARGS+=(--chrome-zip "$ZIP_NAME")
-          else
+          # A store that already has this version (e.g. when re-running after
+          # the other store failed) is skipped rather than failing the run.
+          if [ -z "${CHROME_SERVICE_ACCOUNT_PRIVATE_KEY}" ]; then
             echo "Chrome credentials not configured - skipping Chrome Web Store."
-          fi
-          if [ -n "${FIREFOX_JWT_SECRET}" ]; then
-            ARGS+=(--firefox-zip "$ZIP_NAME")
+          elif [ "$(node tools/store-has-version.mjs chrome "$VERSION")" = yes ]; then
+            echo "Chrome Web Store already has ${VERSION} - skipping."
           else
+            ARGS+=(--chrome-zip "$ZIP_NAME")
+          fi
+          if [ -z "${FIREFOX_JWT_SECRET}" ]; then
             echo "Firefox credentials not configured - skipping Firefox Add-ons."
+          elif [ "$(node tools/store-has-version.mjs firefox "$VERSION")" = yes ]; then
+            echo "Firefox Add-ons already has ${VERSION} - skipping."
+          else
+            ARGS+=(--firefox-zip "$ZIP_NAME")
           fi
           if [ ${#ARGS[@]} -eq 0 ]; then
-            echo "No store credentials configured - skipping submission entirely."
+            echo "Nothing to submit."
             exit 0
           fi
           tools/publish/node_modules/.bin/publish-extension "${ARGS[@]}"

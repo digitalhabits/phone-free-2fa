@@ -507,6 +507,16 @@ body {
   font-weight: 600;
 }
 
+/* Inline brand logo: the phone follows the text colour and the slash the
+   accent, so the mark stays legible in both light and dark mode. */
+.brand-logo {
+  color: var(--text-primary);
+}
+
+.brand-logo-slash {
+  stroke: var(--accent-primary);
+}
+
 .logo-header {
   display: flex;
   flex-direction: column;

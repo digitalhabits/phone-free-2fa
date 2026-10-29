@@ -77,6 +77,8 @@ const manualSecret = $('manual-secret');
 const copySecretBtn = $('copy-secret-btn');
 const secretValidation = $('secret-validation');
 const modalError = $('modal-error');
+const LABEL_REQUIRED = 'Label is required.';
+const SECRET_REQUIRED = 'A valid secret key is required (letters A-Z and digits 2-7).';
 const modalSaveBtn = $('modal-save-btn');
 
 // Delete modal
@@ -560,6 +562,10 @@ function initEventListeners() {
         }
     });
 
+    manualLabel.addEventListener('input', () => {
+        if (manualLabel.value.trim() && modalError.textContent === LABEL_REQUIRED) hideElement(modalError);
+    });
+
     // Secret validation
     manualSecret.addEventListener('input', () => {
         const val = manualSecret.value.trim();
@@ -569,6 +575,7 @@ function initEventListeners() {
             secretValidation.className = 'feedback-text valid';
             secretValidation.textContent = '✓ Valid secret key';
             showElement(secretValidation);
+            if (modalError.textContent === SECRET_REQUIRED) hideElement(modalError);
         } else {
             secretValidation.className = 'feedback-text invalid';
             secretValidation.textContent = 'Invalid key — use letters A-Z and digits 2-7';
@@ -656,7 +663,12 @@ function initEventListeners() {
 
     // Activity tracking
     document.addEventListener('click', () => touchActivity());
-    document.addEventListener('keydown', () => touchActivity());
+    document.addEventListener('keydown', (e) => {
+        touchActivity();
+        // Escape presses Cancel on the topmost open dialog, so its own clean-up runs.
+        if (e.key === 'Escape') [...document.querySelectorAll('.modal-overlay')]
+            .findLast((o) => o.style.display !== 'none')?.querySelector('.btn-secondary').click();
+    });
 
     // Chrome side panels often keep this document alive when "closed".
     // Lock + wipe on hide so the AES key and decrypted secrets do not
@@ -1330,6 +1342,9 @@ function initBiometricListeners() {
 
         await beginBiometricRegistration(epoch);
     });
+    $('biometric-setup-passphrase').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') $('biometric-enable-btn').click();
+    });
 
     // Windows hint buttons
     $('windows-hint-proceed-btn').addEventListener('click', async () => {
@@ -1756,11 +1771,11 @@ async function handleSaveAccount() {
     const secret = manualSecret.value.trim();
 
     if (!label) {
-        showElement(modalError, 'Label is required.');
+        showElement(modalError, LABEL_REQUIRED);
         return;
     }
     if (!secret || !validateBase32(secret)) {
-        showElement(modalError, 'A valid secret key is required (letters A-Z and digits 2-7).');
+        showElement(modalError, SECRET_REQUIRED);
         return;
     }
 

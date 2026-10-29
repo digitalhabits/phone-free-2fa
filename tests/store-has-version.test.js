@@ -15,6 +15,9 @@ test('Chrome: versions come from both the published and the submitted revision',
         submittedItemRevisionStatus: { state: 'PENDING_REVIEW', distributionChannels: [{ crxVersion: '2.9.1' }] },
     };
     assert.deepEqual(chromeVersions(status), ['2.9', '2.9.1']);
+    for (const state of ['REJECTED', 'CANCELLED']) {
+        assert.deepEqual(chromeVersions({ ...status, submittedItemRevisionStatus: { ...status.submittedItemRevisionStatus, state } }), ['2.9']);
+    }
 });
 
 test('Chrome: no revisions or missing fields give no versions', () => {

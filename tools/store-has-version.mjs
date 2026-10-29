@@ -17,7 +17,8 @@ const b64 = (s) => Buffer.from(s).toString('base64url');
 
 /** Every version Chrome has published or has under review. */
 export function chromeVersions(status) {
-  const revisions = [status?.publishedItemRevisionStatus, status?.submittedItemRevisionStatus];
+  const revisions = [status?.publishedItemRevisionStatus, status?.submittedItemRevisionStatus]
+    .filter((r) => !['REJECTED', 'CANCELLED'].includes(r?.state));
   return revisions.flatMap((r) => (r?.distributionChannels ?? []).map((c) => c.crxVersion)).filter(Boolean);
 }
 

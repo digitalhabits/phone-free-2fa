@@ -39,6 +39,13 @@ export class BackupError extends Error {
     }
 }
 
+/** No real backup comes near this size, so larger files are refused before they are read. */
+export const MAX_IMPORT_BYTES = 1_000_000;
+export function readImportFile(file) {
+    if (file.size > MAX_IMPORT_BYTES) throw new BackupError('invalid', 'File too large');
+    return file.text();
+}
+
 /** True if `data` (parsed JSON) claims to be one of our encrypted backups. */
 export function isEncryptedBackup(data) {
     return !!data && typeof data === 'object' && data.format === BACKUP_FORMAT;

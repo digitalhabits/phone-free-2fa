@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createBackup, readBackup, isEncryptedBackup, BackupError, BACKUP_VERSION } from '../src/backup.js';
+import { createBackup, readBackup, isEncryptedBackup, BackupError, BACKUP_VERSION, readImportFile, MAX_IMPORT_BYTES } from '../src/backup.js';
 import { generateSalt, deriveKey, encrypt } from '../src/crypto.js';
 import { generateTOTP } from '../src/totp.js';
 
@@ -171,4 +171,12 @@ test('a backup opens with either spelling of an accented password, including one
     const legacy = { format: 'redd-2fa-backup', version: 3, salt, ...(await encrypt(JSON.stringify(entries), await deriveKey(NFD, salt))) };
     assert.equal((await readBackup(legacy, NFC)).length, accounts.length);
     await assert.rejects(async () => readBackup(legacy, 'wrong-password-entirely'), { code: 'wrong-password' });
+});
+
+test('an import file over the size limit is refused before it is read', async () => {
+    let read = false;
+    const tooLarge = { size: MAX_IMPORT_BYTES + 1, text: async () => { read = true; return ''; } };
+    assert.throws(() => readImportFile(tooLarge), BackupError);
+    assert.equal(read, false);
+    assert.equal(await readImportFile({ size: 2, text: async () => '{}' }), '{}');
 });

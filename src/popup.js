@@ -12,7 +12,7 @@ import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase,
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback, captureLockEpoch, isLockEpochCurrent } from './session.js';
 import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
 import { validateNewPassphrase, MIN_PASSPHRASE_LENGTH } from './passphrase-strength.js';
-import { createBackup, readBackup, isEncryptedBackup } from './backup.js';
+import { createBackup, readBackup, isEncryptedBackup, readImportFile } from './backup.js';
 import { accountFromForm, accountLabel, cleanImportedAccount, accountsFromUriList } from './accounts.js';
 import { createHideLockPolicy } from './lock-policy.js';
 
@@ -2056,7 +2056,7 @@ async function handleRestore() {
     try {
         let data;
         try {
-            data = JSON.parse(await file.text());
+            data = JSON.parse(await readImportFile(file));
         } catch {
             showElement(restoreError, 'Not a Phone-Free 2FA backup file.');
             return;
@@ -2140,7 +2140,7 @@ async function handleImport() {
 
     let skipped = 0;
     try {
-        const text = await file.text();
+        const text = await readImportFile(file);
 
         if (file.name.endsWith('.json')) {
             // Encrypted backup

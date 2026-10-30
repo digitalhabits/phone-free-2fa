@@ -16,6 +16,23 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
+## [2.9.2] - 2026-10-30
+
+### Added
+
+- **Escape closes the open dialog.** It does the same as the dialog's **Cancel** or **Not now** button. The welcome screen still has to be accepted.
+
+### Fixed
+
+- **Long account names ran underneath the code.** A name with a very long word and no spaces now wraps onto the next line.
+- **With many accounts, the list scrolled over the footer.** It now scrolls underneath it.
+- **Enter did nothing when typing your passphrase to enable Touch ID.** It now continues, like clicking **Enable Touch ID**.
+- **Add Account errors stayed on screen after you fixed them.** "Label is required" now goes away when you type a name, and the secret key error goes away once the key is valid.
+
+### Changed
+
+- **Re-running a release no longer fails on the store that already has it.** If one store fails and the release is re-run, a store that already has the version, published or in review, is now skipped. A Chrome submission that was rejected or cancelled is submitted again. If the check fails, both stores are submitted to as before. ([#24](https://github.com/digitalhabits/phone-free-2fa/pull/24))
+
 ## [2.9.1] - 2026-10-04
 
 ### Fixed

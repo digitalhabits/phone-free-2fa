@@ -16,7 +16,7 @@
  */
 
 import browser from './browser.js';
-import { registerBiometric, authenticateBiometric } from './biometric.js';
+import { registerBiometric, authenticateBiometric, rewrapBiometric } from './biometric.js';
 import { loadBiometricData, loadBiometricDataRaw, saveBiometricData } from './storage.js';
 
 const titleEl = document.getElementById('title');
@@ -76,6 +76,13 @@ async function requestPassphraseFromSidePanel() {
 }
 
 async function runSetup() {
+    // Passphrase first: a tab opened by hand gets none and stops here.
+    const passphrase = await requestPassphraseFromSidePanel();
+    if (!passphrase) {
+        showError('Could not retrieve the passphrase from the extension. Close this tab and start setup again from the side panel.');
+        return;
+    }
+
     // Try to re-enable an existing disabled credential without creating a new
     // one. Without this branch, repeated disable/enable cycles would leave a
     // growing pile of orphaned platform passkeys in the user's OS/browser
@@ -84,10 +91,7 @@ async function runSetup() {
     const existing = await loadBiometricDataRaw();
     if (existing?.disabled && existing.credentialId) {
         try {
-            await authenticateBiometric(existing);
-            // Credential still works — just clear the disabled flag.
-            delete existing.disabled;
-            await saveBiometricData(existing);
+            await saveBiometricData(await rewrapBiometric(existing, passphrase));
             await browser.runtime.sendMessage({
                 type: 'biometric-setup-done',
                 reEnabled: true,
@@ -101,11 +105,6 @@ async function runSetup() {
         }
     }
 
-    const passphrase = await requestPassphraseFromSidePanel();
-    if (!passphrase) {
-        showError('Could not retrieve the passphrase from the extension. Close this tab and start setup again from the side panel.');
-        return;
-    }
     const data = await registerBiometric(passphrase);
     await saveBiometricData(data);
     await browser.runtime.sendMessage({ type: 'biometric-setup-done' }).catch(() => { });

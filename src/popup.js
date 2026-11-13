@@ -8,9 +8,9 @@
 
 import browser from './browser.js';
 import { generateTOTP, getRemainingSeconds, buildOtpauthURI, validateBase32 } from './totp.js';
-import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, replaceVault, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState, StaleVaultError } from './storage.js';
+import { isFirstLaunch, setupPassphrase, unlockWithPassphrase, changePassphrase, replaceVault, loadAccounts, saveAccounts, loadSettings, saveSettings, saveBiometricData, loadBiometricData, loadBiometricDataRaw, disableBiometric, scrubDisabledBiometricData, clearBiometricData, getBackupStatus, saveBackupFingerprint, loadLockoutState, saveLockoutState, clearLockoutState, StaleVaultError } from './storage.js';
 import { setSessionKey, getSessionKey, isUnlocked, lock, touchActivity, setAutoLockMinutes, setOnLockCallback, captureLockEpoch, isLockEpochCurrent } from './session.js';
-import { isBiometricAvailable, registerBiometric, authenticateBiometric } from './biometric.js';
+import { isBiometricAvailable, registerBiometric, authenticateBiometric, rewrapBiometric } from './biometric.js';
 import { validateNewPassphrase, MIN_PASSPHRASE_LENGTH } from './passphrase-strength.js';
 import { createBackup, readBackup, isEncryptedBackup, readImportFile } from './backup.js';
 import { accountFromForm, accountLabel, cleanImportedAccount, accountsFromUriList } from './accounts.js';
@@ -277,6 +277,7 @@ function validateSetup() {
 document.addEventListener('DOMContentLoaded', async () => {
     settings = await loadSettings();
     applyTheme(settings.theme);
+    await scrubDisabledBiometricData().catch(err => console.error('Failed to scrub disabled biometric data:', err));
     initEventListeners();
     initBiometricListeners();
     initHelpTabs();
@@ -962,13 +963,10 @@ async function beginBiometricRegistration(epoch = captureLockEpoch()) {
 
 /**
  * Enable Touch ID from settings — bypasses the post-unlock "don't ask again"
- * preference and starts setup immediately when possible.
+ * preference. Always needs the passphrase, also to re-enable a disabled credential.
  */
 async function enableBiometricFromSettings() {
-    const raw = await loadBiometricDataRaw();
-    const canReEnableDisabled = !!(raw?.disabled && raw.credentialId);
-
-    if (pendingPassphrase || canReEnableDisabled) {
+    if (pendingPassphrase) {
         await beginBiometricRegistration();
         return;
     }
@@ -1240,6 +1238,12 @@ async function handleBiometricUnlockResult(message, epoch) {
  * with NotAllowedError, surfacing as a confusing "setup failed" toast).
  */
 async function performBiometricRegistration(epoch = captureLockEpoch()) {
+    // Nothing to wrap (the 60 s hold ran out): ask for the passphrase again.
+    const passphrase = pendingPassphrase;
+    if (!passphrase) {
+        showBiometricSetupFromSettings();
+        return;
+    }
     if (await needsTabWorkaroundForWebAuthn()) {
         if (!isLockEpochCurrent(epoch)) return;
         try {
@@ -1265,12 +1269,10 @@ async function performBiometricRegistration(epoch = captureLockEpoch()) {
         const existing = await loadBiometricDataRaw();
         if (existing?.disabled && existing.credentialId) {
             try {
-                // Test if the old credential still works
-                const passphrase = await authenticateBiometric(existing);
+                // If the old passkey still works, wrap the passphrase under it again.
+                const rewrapped = await rewrapBiometric(existing, passphrase);
                 if (!isLockEpochCurrent(epoch)) return;
-                // It works — re-enable with existing data
-                delete existing.disabled;
-                await saveBiometricData(existing);
+                await saveBiometricData(rewrapped);
                 pendingPassphrase = null;
                 if (pendingPassphraseTimer) { clearTimeout(pendingPassphraseTimer); pendingPassphraseTimer = null; }
                 biometricPromptOverlay.style.display = 'none';
@@ -1283,7 +1285,7 @@ async function performBiometricRegistration(epoch = captureLockEpoch()) {
             }
         }
 
-        const data = await registerBiometric(pendingPassphrase);
+        const data = await registerBiometric(passphrase);
         if (!isLockEpochCurrent(epoch)) return;
         await saveBiometricData(data);
         pendingPassphrase = null;

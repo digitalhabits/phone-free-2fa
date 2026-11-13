@@ -90,20 +90,11 @@ export async function registerBiometric(passphrase) {
             prfOutput = new Uint8Array(authPrf);
         }
 
-        const wrappingKey = await deriveWrappingKey(prfOutput);
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const ciphertext = await crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv },
-            wrappingKey,
-            new TextEncoder().encode(passphrase),
-        );
-
         return {
             mode: 'prf',
             credentialId: bufferToBase64(credential.rawId),
             prfSalt: bufferToBase64(prfSalt),
-            iv: bufferToBase64(iv),
-            ciphertext: bufferToBase64(ciphertext),
+            ...await wrapPassphrase(prfOutput, passphrase),
         };
     }
 
@@ -116,21 +107,45 @@ export async function registerBiometric(passphrase) {
  * Returns the plaintext passphrase string.
  */
 export async function authenticateBiometric(storedData) {
-    const credentialId = base64ToBuffer(storedData.credentialId);
     const mode = storedData.mode || 'prf';
 
     if (mode !== 'prf') {
         throw new Error('Legacy biometric data format.');
     }
+    if (!storedData.iv || !storedData.ciphertext) {
+        throw new Error('Biometric unlock is disabled.');
+    }
 
-    return authenticatePRF(storedData, credentialId);
+    return authenticatePRF(storedData);
 }
 
 // ========================================
 // Authentication strategies
 // ========================================
 
-async function authenticatePRF(storedData, credentialId) {
+/**
+ * Re-enable a disabled credential: one Touch ID prompt on the existing
+ * passkey, then wrap `passphrase` under it. Returns the data to store.
+ * Throws if the passkey is gone, so the caller can register a new one.
+ */
+export async function rewrapBiometric(storedData, passphrase) {
+    if ((storedData.mode || 'prf') !== 'prf') throw new Error('Legacy biometric data format.');
+    return {
+        mode: 'prf',
+        credentialId: storedData.credentialId,
+        prfSalt: storedData.prfSalt,
+        ...await wrapPassphrase(await getPrfOutput(storedData), passphrase),
+    };
+}
+
+async function authenticatePRF(storedData) {
+    const wrappingKey = await deriveWrappingKey(await getPrfOutput(storedData));
+    return decryptPassphrase(wrappingKey, storedData);
+}
+
+/** One WebAuthn prompt on the stored credential; returns its PRF output. */
+async function getPrfOutput(storedData) {
+    const credentialId = base64ToBuffer(storedData.credentialId);
     const prfSalt = base64ToBuffer(storedData.prfSalt);
 
     const assertion = await navigator.credentials.get({
@@ -149,13 +164,23 @@ async function authenticatePRF(storedData, credentialId) {
 
     if (!prfOutput) throw new Error('Biometric authentication failed (no PRF output).');
 
-    const wrappingKey = await deriveWrappingKey(new Uint8Array(prfOutput));
-    return decryptPassphrase(wrappingKey, storedData);
+    return new Uint8Array(prfOutput);
 }
 
 // ========================================
 // Internal helpers
 // ========================================
+
+/** Encrypt the passphrase under the passkey's PRF output: { iv, ciphertext }. */
+async function wrapPassphrase(prfOutput, passphrase) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        await deriveWrappingKey(prfOutput),
+        new TextEncoder().encode(passphrase),
+    );
+    return { iv: bufferToBase64(iv), ciphertext: bufferToBase64(ciphertext) };
+}
 
 async function decryptPassphrase(wrappingKey, storedData) {
     const iv = base64ToBuffer(storedData.iv);

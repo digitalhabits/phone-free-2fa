@@ -11,7 +11,8 @@ Chrome's extension page will show two warnings under **Errors**. Both are expect
 The lock rules around the Touch ID tab changed in 2.9. If the browser reports the panel as hidden while the Touch ID tab is in front, these would break.
 
 - [ ] Lock the vault. Click **Unlock with Touch ID**, complete the prompt. → The tab closes and the panel shows your accounts.
-- [ ] Settings → disable Touch ID, then enable it again. → "Touch ID re-enabled!" and the panel is still unlocked.
+- [ ] Settings → disable Touch ID, then enable it again. → It asks for your passphrase, then one Touch ID prompt; "Touch ID re-enabled!" and the panel is still unlocked. No second passkey appears in the OS or browser passkey list.
+- [ ] Disable Touch ID, lock, and open `chrome-extension://<id>/biometric-tab.html?mode=setup` by hand. → No Touch ID prompt; the tab says it could not retrieve the passphrase. The lock screen still offers the passphrase only.
 - [ ] With Touch ID never set up: unlock with the passphrase, accept the offer, complete setup. → "Touch ID enabled!" and the panel is still unlocked.
 
 ## 2. Closing the panel always locks
@@ -26,12 +27,7 @@ Set auto-lock to **Never** for this section, so only the hide rules are being te
 
 ## 3. "Not now" forgets the passphrase
 
-**Precondition: Touch ID must never have been set up in this profile.** Disabling Touch ID is not enough. `disableBiometric()` only sets a `disabled` flag and keeps the wrapped passphrase in storage, so Settings → Enable Touch ID re-enables from the stored credential without ever asking — that is section 1's second item, not this one. Only a passphrase change clears the data. So either run section 7 first and come back here, or wipe it by hand in the panel's DevTools console:
-
-```js
-chrome.storage.local.remove('redd2fa_biometric')
-```
-
+- [ ] With Touch ID disabled (or never set up): Settings → Enable Touch ID. → It asks for your passphrase again.
 - [ ] Unlock with the passphrase, click **Not now** on the Touch ID offer. Settings → Enable Touch ID. → It asks for your passphrase again.
 
 ## 4. Two windows
@@ -62,8 +58,6 @@ chrome.storage.local.remove('redd2fa_biometric')
 
 ## 7. Passphrase change
 
-Changing the passphrase clears the stored biometric data, so this section leaves the profile in the state section 3 needs. If you could not run section 3 earlier, run it now.
-
 - [ ] Change the passphrase. Lock. → Old passphrase refused, new one works, all accounts present. Touch ID asks to be set up again.
 
 ## 8. Restore from backup (lock screen)
@@ -77,5 +71,5 @@ This is the only path that destroys a vault, and it is reachable without the mas
 - [ ] Get the backup password wrong five times. → The same progressive lockout as the passphrase (5s, then 30s after 10, 5min after 15). Failed unlocks and failed restores share one counter.
 - [ ] Try to restore with a weak new master passphrase, or with the two new-passphrase fields differing, or with the confirmation checkbox unticked. → Each refused, nothing written.
 - [ ] Restore properly: correct backup password, strong new passphrase, checkbox ticked. → The panel unlocks straight into the accounts from the backup, the codes match another authenticator, and the toast says to set up Touch ID again.
-- [ ] Lock. → Only the new passphrase works; the old one is refused. Touch ID is gone and asks to be set up from scratch (not "re-enabled" — see section 3).
+- [ ] Lock. → Only the new passphrase works; the old one is refused. Touch ID is gone and asks to be set up from scratch (not "re-enabled").
 - [ ] Start a restore, type a backup password and a new passphrase, then close the side panel without finishing. Reopen. → Lock screen, restore modal closed, every field empty.

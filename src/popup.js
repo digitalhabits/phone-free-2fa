@@ -1238,6 +1238,12 @@ async function handleBiometricUnlockResult(message, epoch) {
  * with NotAllowedError, surfacing as a confusing "setup failed" toast).
  */
 async function performBiometricRegistration(epoch = captureLockEpoch()) {
+    // Nothing to wrap (the 60 s hold ran out): ask for the passphrase again.
+    const passphrase = pendingPassphrase;
+    if (!passphrase) {
+        showBiometricSetupFromSettings();
+        return;
+    }
     if (await needsTabWorkaroundForWebAuthn()) {
         if (!isLockEpochCurrent(epoch)) return;
         try {
@@ -1264,7 +1270,7 @@ async function performBiometricRegistration(epoch = captureLockEpoch()) {
         if (existing?.disabled && existing.credentialId) {
             try {
                 // If the old passkey still works, wrap the passphrase under it again.
-                const rewrapped = await rewrapBiometric(existing, pendingPassphrase);
+                const rewrapped = await rewrapBiometric(existing, passphrase);
                 if (!isLockEpochCurrent(epoch)) return;
                 await saveBiometricData(rewrapped);
                 pendingPassphrase = null;
@@ -1279,7 +1285,7 @@ async function performBiometricRegistration(epoch = captureLockEpoch()) {
             }
         }
 
-        const data = await registerBiometric(pendingPassphrase);
+        const data = await registerBiometric(passphrase);
         if (!isLockEpochCurrent(epoch)) return;
         await saveBiometricData(data);
         pendingPassphrase = null;

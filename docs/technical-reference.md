@@ -36,7 +36,7 @@ The security of biometric unlock therefore depends on the selected passkey provi
 
 Windows Hello does not currently support the WebAuthn PRF extension required by this implementation. Windows users must choose a compatible provider such as Google Password Manager or 1Password. Firefox does not currently allow the WebAuthn Credentials API from extension origins, so biometric unlock is unavailable there; see [Mozilla bug 1462088](https://bugzilla.mozilla.org/show_bug.cgi?id=1462088).
 
-Changing the master passphrase clears the stored biometric configuration.
+Disabling biometric unlock deletes the encrypted passphrase; only the passkey's identifier and PRF salt are kept, so that enabling it again can reuse the same passkey. Enabling again always requires the master passphrase. Changing the master passphrase clears the stored biometric configuration.
 
 ## Runtime flow
 

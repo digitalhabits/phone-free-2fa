@@ -215,3 +215,38 @@ test('a vault made under either spelling of an accented passphrase, before or af
     });
     await unlocks();
 });
+
+// ----------------------------------------
+// Touch ID data
+// ----------------------------------------
+const BIOMETRIC = { mode: 'prf', credentialId: 'Y3JlZA==', prfSalt: 'c2FsdA==', iv: 'aXY=', ciphertext: 'd3JhcHBlZA==' };
+
+test('disabling Touch ID deletes the wrapped passphrase and keeps only the passkey reference', async () => {
+    await storage.saveBiometricData(BIOMETRIC);
+    await storage.disableBiometric();
+
+    assert.deepEqual(fake.dump().redd2fa_biometric,
+        { mode: 'prf', credentialId: BIOMETRIC.credentialId, prfSalt: BIOMETRIC.prfSalt, disabled: true });
+    assert.equal(await storage.loadBiometricData(), null, 'not offered on the lock screen');
+});
+
+test('a record disabled by 2.9.2 or earlier loses its leftover wrapped passphrase at startup', async () => {
+    await browser.storage.local.set({ redd2fa_biometric: { ...BIOMETRIC, disabled: true } });
+    await storage.scrubDisabledBiometricData();
+
+    const stored = fake.dump().redd2fa_biometric;
+    assert.equal(stored.ciphertext, undefined);
+    assert.equal(stored.iv, undefined);
+    assert.equal(stored.disabled, true);
+    assert.equal(stored.credentialId, BIOMETRIC.credentialId, 'the passkey can still be reused');
+});
+
+test('the startup scrub leaves enabled Touch ID alone', async () => {
+    await storage.saveBiometricData(BIOMETRIC);
+    await storage.scrubDisabledBiometricData();
+    assert.deepEqual(fake.dump().redd2fa_biometric, BIOMETRIC);
+
+    fake.reset();
+    await storage.scrubDisabledBiometricData(); // nothing stored: no error, nothing written
+    assert.equal(fake.dump().redd2fa_biometric, undefined);
+});

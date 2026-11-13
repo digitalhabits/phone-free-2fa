@@ -307,14 +307,23 @@ export async function loadBiometricDataRaw() {
 }
 
 /**
- * Soft-disable biometric unlock (keep credential data for potential re-use).
+ * Disable biometric unlock: delete the wrapped passphrase. The credential id
+ * and PRF salt (not secret) are kept so that enabling again can reuse the
+ * passkey — which needs the passphrase, see rewrapBiometric in biometric.js.
  */
 export async function disableBiometric() {
     const result = await browser.storage.local.get('redd2fa_biometric');
     const data = result.redd2fa_biometric;
-    if (data) {
-        data.disabled = true;
-        await browser.storage.local.set({ redd2fa_biometric: data });
+    if (!data) return;
+    const { iv, ciphertext, ...kept } = data;
+    await browser.storage.local.set({ redd2fa_biometric: { ...kept, disabled: true } });
+}
+
+/** 2.9.2 and earlier kept the wrapped passphrase when disabling. Remove it. */
+export async function scrubDisabledBiometricData() {
+    const data = await loadBiometricDataRaw();
+    if (data?.disabled && (data.ciphertext !== undefined || data.iv !== undefined)) {
+        await disableBiometric();
     }
 }
 

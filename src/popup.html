@@ -353,6 +353,7 @@
           </svg>
         </button>
         <h3>Settings</h3>
+        <div class="settings-card">
         <div class="settings-item">
           <label for="theme-select">Light / dark theme</label>
           <select id="theme-select" class="settings-select">
@@ -371,7 +372,9 @@
             <option value="0">Never</option>
           </select>
         </div>
+        </div>
         <div class="settings-divider"></div>
+        <div class="settings-card">
         <button id="export-btn" class="settings-action">Export backup<span id="backup-badge" class="backup-badge"
             style="display: none;">unsaved changes</span></button>
         <button id="import-btn" class="settings-action">Import backup</button>
@@ -391,10 +394,13 @@
           <p><strong>2.</strong> Use <strong>Export backup</strong> above and choose <strong>Plain text URIs</strong> to
             create a file you can import into most authenticator apps.</p>
         </div>
+        </div>
         <div class="settings-divider"></div>
+        <div class="settings-card">
         <button id="change-passphrase-btn" class="settings-action">Change passphrase</button>
         <button id="biometric-toggle-btn" class="settings-action" style="display: none;"></button>
         <button id="lock-btn" class="settings-action settings-action-danger">Lock now</button>
+        </div>
       </div>
     </div>
 
@@ -617,7 +623,7 @@
   <!-- Windows-specific hint before WebAuthn prompt -->
   <div id="windows-hint-overlay" class="modal-overlay" style="display: none;">
     <div class="modal modal-small">
-      <p class="biometric-prompt-text"><svg
+      <p class="biometric-prompt-text"><svg class="windows-hint-icon"
           style="width: 18px; height: 18px; vertical-align: text-bottom; margin-right: 4px; flex-shrink: 0;"
           viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" stroke-linecap="round"
           stroke-linejoin="round">

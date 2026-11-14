@@ -1,8 +1,30 @@
 /* ========================================
    Phone-Free 2FA — Popup Styles
    Vanilla CSS with CSS custom properties
-   Matching digitalhabits / ReDD open-source design language
+   Light mode: the Centre for Digital Habits design system, as on the
+   website and in To-Do — ink text, green actions, cream and sand,
+   Schibsted Grotesk, Georgia headings. Dark mode keeps its own colours.
    ======================================== */
+
+/* Schibsted Grotesk (Google Fonts, OFL; licence in fonts/OFL.txt), the
+   variable font, so every weight the popup uses is the real one. */
+@font-face {
+  font-family: "Schibsted Grotesk";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("fonts/SchibstedGrotesk-Variable-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Schibsted Grotesk";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("fonts/SchibstedGrotesk-Variable-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
 
 /* ========================================
    Theme Variables — Light Mode (default)
@@ -10,75 +32,82 @@
 :root {
   color-scheme: light;
 
-  /* ReDD portable tokens */
-  --bg-primary: #faf8f5;
+  /* Centre for Digital Habits tokens: cream #f5f1ea, sand #efeae2,
+     ink #1b3d4a, green #005d53, coral #b4432e */
+  --bg-primary: #f5f1ea;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f1eee9;
-  --bg-hover: #f6f2ed;
+  --bg-tertiary: #efeae2;
+  --bg-hover: rgba(27, 61, 74, 0.05);
   --bg-input: #ffffff;
-  --bg-accent-soft: #e5f5f3;
-  --bg-info-soft: #e8f1fa;
-  --surface-strong: #fffaf7;
+  --bg-accent-soft: #dbf0ea;
+  --bg-info-soft: #efeae2;
+  --surface-strong: #ffffff;
   --overlay-card: rgba(255, 255, 255, 0.88);
 
-  --text-primary: #1e2d3e;
-  --text-secondary: #2c2c35;
-  --text-muted: #696977;
-  --text-subtle: #9a938d;
+  --text-primary: #1b3d4a;
+  --text-secondary: #47616a;
+  --text-muted: #586f77;
+  --text-subtle: #7a8d93;
 
-  --border-color: #e1dcd6;
-  --border-hover: #d4cdc6;
-  --border-input: #ddd6cf;
-  --border-focus: #2a9d8f;
+  --border-color: #d2d4d0;
+  --border-hover: #bfc4bf;
+  --border-input: #d2d4d0;
+  --border-focus: #005d53;
 
-  --accent-primary: #2a9d8f;
-  --accent-hover: #24877b;
-  --accent-secondary: #4a90e2;
-  --accent-coral: #d4605a;
+  --accent-primary: #005d53;
+  --accent-hover: #004d45;
+  --accent-secondary: #005d53;
+  --accent-coral: #b4432e;
 
-  --btn-primary-bg: #2a9d8f;
+  --btn-primary-bg: #005d53;
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: #24877b;
+  --btn-primary-hover: #004d45;
   --btn-secondary-bg: #ffffff;
-  --btn-secondary-text: #1e2d3e;
-  --btn-secondary-hover: #f6f2ed;
-  --btn-danger-bg: #d4605a;
+  --btn-secondary-text: #1b3d4a;
+  --btn-secondary-hover: rgba(27, 61, 74, 0.05);
+  --btn-danger-bg: #b4432e;
   --btn-danger-text: #ffffff;
-  --btn-danger-hover: #c25650;
+  --btn-danger-hover: #9c3a28;
 
   --modal-bg: #ffffff;
-  --modal-overlay: rgba(30, 45, 62, 0.24);
-  --modal-shadow: 0 18px 40px rgba(30, 45, 62, 0.12);
+  --modal-overlay: rgba(27, 61, 74, 0.24);
+  --modal-shadow: 0 18px 40px rgba(27, 61, 74, 0.12);
 
-  --code-color: #1e2d3e;
-  --code-bg: #f8f4ef;
+  --code-color: #1b3d4a;
+  --code-bg: #efeae2;
 
-  --ring-track: #e1dcd6;
-  --ring-fill: #2a9d8f;
+  --ring-track: #d2d4d0;
+  --ring-fill: #005d53;
   --ring-warn: #d29b41;
-  --ring-critical: #d4605a;
+  --ring-critical: #b4432e;
 
-  --toast-bg: #1e2d3e;
+  --toast-bg: #1b3d4a;
   --toast-text: #ffffff;
 
-  --icon-color: #7d7a81;
-  --icon-hover: #1e2d3e;
-  --link-color: #4a90e2;
-  --link-hover: #2a9d8f;
+  --icon-color: #586f77;
+  --icon-hover: #1b3d4a;
+  --link-color: #005d53;
+  --link-hover: #004d45;
   --warning-text: #8d542d;
   --warning-bg: #fdf2ea;
   --warning-border: #efc6ab;
   --success-text: #226b58;
-  --danger-soft: #faebea;
+  --danger-soft: #f6e8e6;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 8px 24px rgba(30, 45, 62, 0.1);
+  /* Settings: white cards on the cream, as in To-Do's Settings */
+  --settings-card-bg: #ffffff;
+  --settings-divider: transparent;
+  /* The info icon in the Windows hint */
+  --hint-icon: #005d53;
+
+  --shadow-sm: 0 1px 2px rgba(27, 61, 74, 0.08);
+  --shadow-md: 0 8px 24px rgba(27, 61, 74, 0.1);
   --radius: 8px;
   --radius-sm: 8px;
   --radius-card: 12px;
   --radius-pill: 999px;
   --font-heading: Georgia, "Times New Roman", serif;
-  --font-body: Inter, Arial, Helvetica, sans-serif;
+  --font-body: "Schibsted Grotesk", Inter, Arial, Helvetica, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -147,6 +176,14 @@
   --warning-border: rgba(239, 145, 138, 0.34);
   --success-text: #9ce0d4;
   --danger-soft: rgba(212, 96, 90, 0.18);
+
+  /* Light mode moved to the Digital Habits look; dark mode keeps the
+     values it had, including these it used to share with light mode. */
+  --settings-card-bg: transparent;
+  --settings-divider: var(--border-color);
+  --hint-icon: #2563eb;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(30, 45, 62, 0.1);
 }
 
 /* ========================================
@@ -739,7 +776,7 @@ body {
 .form-group input:focus,
 .form-group textarea:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.16);
+  box-shadow: 0 0 0 3px rgba(0, 93, 83, 0.16);
 }
 
 .dark-mode .form-group input:focus,
@@ -965,13 +1002,13 @@ body {
   width: auto;
   padding: 0 12px;
   gap: 8px;
-  color: #000;
+  color: var(--text-primary);
   justify-content: flex-start;
   text-align: left;
 }
 
 #add-account-btn:hover {
-  color: #000;
+  color: var(--text-primary);
 }
 
 .dark-mode #add-account-btn,
@@ -1064,7 +1101,7 @@ body {
 
 #search-input:focus {
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(42, 157, 143, 0.12);
+  box-shadow: 0 0 0 3px rgba(0, 93, 83, 0.12);
 }
 
 .dark-mode #search-input:focus {
@@ -1415,8 +1452,17 @@ body {
 }
 
 .help-works-panel {
-  padding: 12px 14px 8px;
+  padding: 16px 14px;
   border-radius: var(--radius-card);
+}
+
+/* The panel's padding sets the space at the top and bottom */
+.help-works-panel p:first-child {
+  margin-top: 0;
+}
+
+.help-works-panel p:last-child {
+  margin-bottom: 0;
 }
 
 .help-instructions-panel p,
@@ -1714,7 +1760,7 @@ body:has(.settings-dropdown[style*="block"]) {
   border-radius: var(--radius-sm);
   cursor: pointer;
   outline: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23586f77' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   transition: border-color 0.2s ease;
@@ -1780,8 +1826,25 @@ button.backup-badge:hover {
 
 .settings-divider {
   height: 1px;
-  background-color: var(--border-color);
+  background-color: var(--settings-divider);
   margin: 6px 0;
+}
+
+/* Groups of settings. Light mode shows each as a white card on the cream,
+   as in To-Do's Settings; dark mode keeps its flat list. */
+.settings-card {
+  background-color: var(--settings-card-bg);
+}
+
+html:not(.dark-mode) .settings-card {
+  padding: 4px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+}
+
+html:not(.dark-mode) .settings-card .settings-item {
+  margin-bottom: 0;
+  padding: 10px 0;
 }
 
 .settings-action {
@@ -2135,6 +2198,10 @@ button.backup-badge:hover {
 
 .lock-divider span {
   padding: 0 12px;
+}
+
+.windows-hint-icon {
+  stroke: var(--hint-icon);
 }
 
 .biometric-prompt-text {

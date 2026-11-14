@@ -286,7 +286,18 @@
                     <h4>Get a secret key from your service</h4>
                     <p>From e.g. your Microsoft account, add a new sign-in route and get a
                       'secret key' (sometimes shown as a QR code; if so, click 'Can't scan the QR code?').</p>
-                    <img class="timeline-image" src="step1.png" alt="Illustration for getting a secret key from a service">
+                    <div class="timeline-figure zoomable-figure">
+                      <img class="timeline-image zoomable-image" src="step1.png" alt="Illustration for getting a secret key from a service">
+                      <button class="image-expand-btn" type="button" aria-label="Show this image larger" title="Show larger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                          stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="15 3 21 3 21 9" />
+                          <polyline points="9 21 3 21 3 15" />
+                          <line x1="21" y1="3" x2="14" y2="10" />
+                          <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </article>
                 <article class="timeline-step">
@@ -295,7 +306,18 @@
                     <h4>Add the secret key to Phone-Free 2FA</h4>
                     <p>In Phone-Free 2FA, click 'Add account', give it a name like 'My University 2FA' and paste in the secret key.
                     </p>
-                    <img class="timeline-image" src="step2.png" alt="Illustration for adding the secret key to Phone-Free 2FA">
+                    <div class="timeline-figure zoomable-figure">
+                      <img class="timeline-image zoomable-image" src="step2.png" alt="Illustration for adding the secret key to Phone-Free 2FA">
+                      <button class="image-expand-btn" type="button" aria-label="Show this image larger" title="Show larger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                          stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="15 3 21 3 21 9" />
+                          <polyline points="9 21 3 21 3 15" />
+                          <line x1="21" y1="3" x2="14" y2="10" />
+                          <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </article>
                 <article class="timeline-step">
@@ -303,8 +325,19 @@
                   <div class="timeline-content">
                     <h4>Give a code from Phone-Free 2FA to your service</h4>
                     <p>Copy a generated code back into e.g. your Microsoft sign-in setup page. Done! 🥳</p>
-                    <img class="timeline-image" src="step3.png"
-                      alt="Illustration for confirming setup with a generated code">
+                    <div class="timeline-figure zoomable-figure">
+                      <img class="timeline-image zoomable-image" src="step3.png"
+                        alt="Illustration for confirming setup with a generated code">
+                      <button class="image-expand-btn" type="button" aria-label="Show this image larger" title="Show larger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                          stroke-linejoin="round" aria-hidden="true">
+                          <polyline points="15 3 21 3 21 9" />
+                          <polyline points="9 21 3 21 3 15" />
+                          <line x1="21" y1="3" x2="14" y2="10" />
+                          <line x1="3" y1="21" x2="10" y2="14" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </article>
               </div>
@@ -340,6 +373,19 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Help image shown large (opened from a step's expand button) -->
+    <div id="image-viewer" class="image-viewer" style="display: none;" role="dialog" aria-modal="true"
+      aria-label="Image, shown larger">
+      <button id="image-viewer-close" class="image-viewer-close" type="button" aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+          stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+      <img id="image-viewer-img" alt="">
     </div>
 
     <!-- Settings Dropdown -->

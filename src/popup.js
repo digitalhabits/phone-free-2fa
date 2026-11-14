@@ -176,6 +176,27 @@ function setFooterVisible(visible) {
     if (popupFooter) popupFooter.style.display = visible ? 'block' : 'none';
 }
 
+// Help images shown larger (#image-viewer). Any click in the viewer, its
+// Close button or Escape closes it; focus goes back to the expand button.
+const imageViewer = $('image-viewer');
+const imageViewerImg = $('image-viewer-img');
+let imageViewerOpener = null;
+
+function openImageViewer(img, opener) {
+    imageViewerImg.src = img.src;
+    imageViewerImg.alt = img.alt;
+    imageViewerOpener = opener;
+    imageViewer.style.display = 'flex';
+    $('image-viewer-close').focus();
+}
+
+function closeImageViewer(restoreFocus = true) {
+    if (imageViewer.style.display === 'none') return;
+    imageViewer.style.display = 'none';
+    if (restoreFocus) imageViewerOpener?.focus();
+    imageViewerOpener = null;
+}
+
 function restoreInputSelection(input, start, end, direction) {
     const len = input.value.length;
     const selStart = start == null ? len : Math.min(start, len);
@@ -310,6 +331,7 @@ function showScreen(screen) {
     setupScreen.style.display = screen === 'setup' ? 'block' : 'none';
     lockScreen.style.display = screen === 'lock' ? 'block' : 'none';
     mainScreen.style.display = screen === 'main' ? 'block' : 'none';
+    if (screen !== 'main') closeImageViewer(false);
     setFooterVisible(screen === 'setup' || screen === 'lock' || screen === 'main');
 
     if (screen === 'main') {
@@ -662,10 +684,24 @@ function initEventListeners() {
         });
     });
 
+    // Help images: the expand button (or the image) shows it larger.
+    document.querySelectorAll('.zoomable-figure').forEach((figure) => {
+        const img = figure.querySelector('.zoomable-image');
+        const btn = figure.querySelector('.image-expand-btn');
+        btn.addEventListener('click', () => openImageViewer(img, btn));
+        img.addEventListener('click', () => openImageViewer(img, btn));
+    });
+    imageViewer.addEventListener('click', () => closeImageViewer());
+
+
     // Activity tracking
     document.addEventListener('click', () => touchActivity());
     document.addEventListener('keydown', (e) => {
         touchActivity();
+        if (e.key === 'Escape' && imageViewer.style.display !== 'none') {
+            closeImageViewer();
+            return;
+        }
         // Escape presses Cancel on the topmost open dialog, so its own clean-up runs.
         if (e.key === 'Escape') [...document.querySelectorAll('.modal-overlay')]
             .findLast((o) => o.style.display !== 'none')?.querySelector('.btn-secondary').click();

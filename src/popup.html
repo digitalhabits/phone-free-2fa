@@ -670,14 +670,16 @@
     </div>
   </div>
 
-  <footer id="popup-footer" class="popup-footer app-footer" style="display: none;">
-    <p class="app-footer-line">Built by researchers at the University of Oxford and Maastricht University, part of
+  <footer id="popup-footer" class="popup-footer" style="display: none;">
+    <!-- Onboarding (setup screen) only -->
+    <p class="popup-footer-onboarding">Built by researchers at the University of Oxford and Maastricht University, part of
       <a href="https://digitalhabits.org" target="_blank" rel="noopener noreferrer"
         class="eula-link">Centre for Digital Habits</a><br><a
         href="https://github.com/ulyngs/phone-free-2fa" target="_blank" rel="noopener noreferrer"
         class="eula-link">View source on GitHub</a></p>
-    <p class="app-footer-line">Made with ❤️ by <a href="https://digitalhabits.org" target="_blank" rel="noopener noreferrer"
-        class="eula-link">digitalhabits.org</a></p>
+    <!-- Everywhere else: one compact line, as in the Focus extension -->
+    <p class="popup-footer-compact">Built by <a href="https://digitalhabits.org" target="_blank"
+        rel="noopener noreferrer">Centre for Digital Habits</a></p>
   </footer>
 
   <!-- Toast notification -->

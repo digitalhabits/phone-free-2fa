@@ -230,7 +230,7 @@
     <!-- Empty State -->
     <div id="empty-state" class="empty-state" style="display: none;">
       <p class="empty-title">No accounts yet</p>
-      <p class="empty-subtitle">Click <strong>Add account</strong> above to start generating secure one-time codes with Phone-Free 2FA. (Instructions below)</p>
+      <p class="empty-subtitle">Click <strong>Add account</strong> above, or follow the instructions below, to start generating secure one-time codes with Phone-Free 2FA.</p>
     </div>
 
     <div class="help-tabs-wrapper">
@@ -249,30 +249,110 @@
 
           <div class="help-instructions-panel">
             <div id="tab-panel-use-microsoft" class="help-subtab-panel" role="tabpanel" aria-labelledby="tab-use-microsoft">
-              <div class="account-help-detail-block">
-                <p class="account-help-subtitle">If these steps don't work, check guidance from your local IT service.</p>
-                <ol class="account-help-detail-list">
-                  <li>Go to <a href="https://mysignins.microsoft.com/security-info"
-                      target="_blank">mysignins.microsoft.com/security-info</a>, sign in, and click <strong>Add sign-in
-                      method</strong>
-                    (if you don't see it on the page, click 'Security info').</li>
-                  <li>Select <strong>Microsoft Authenticator</strong> → <strong>Set up a different authentication
-                      app</strong>
-                    → <strong>Next</strong> → <strong>Can't scan the QR code?</strong> → copy the secret key.</li>
-                  <li>In Phone-Free 2FA, <strong>Add account</strong> → paste the secret key → codes appear.</li>
-                  <li>On your Microsoft account page, click <strong>Next</strong> → enter a code Phone-Free 2FA generates. Done.</li>
-                </ol>
-                <div class="callout-box">
-                  <span class="callout-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                      stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 16v-4" />
-                      <path d="M12 8h.01" />
-                    </svg>
-                  </span>
-                  <p>Next time you log in, Microsoft may still default to the Authenticator app. Click <strong>"I can't use my Microsoft Authenticator app right now"</strong> → <strong>Use
-                      a verification code</strong>.</p>
+              <!-- Step by step, one step open at a time; popup.js ticks them off. The boxes draw the buttons
+                   to click on Microsoft's page. -->
+              <div class="guide">
+                <p id="guide-progress" class="guide-progress" aria-live="polite"></p>
+                <div class="guide-part" data-part="1">
+                  <button class="guide-part-header" type="button" aria-expanded="false" aria-controls="guide-part-1-body">
+                    <span class="guide-part-num" aria-hidden="true">1</span>
+                    <span class="guide-part-title">Open your Microsoft security page</span>
+                    <span class="guide-part-toggle">Show</span>
+                  </button>
+                  <div id="guide-part-1-body" class="guide-part-body" hidden>
+                    <p>Go to <a href="https://mysignins.microsoft.com/security-info" target="_blank" rel="noopener noreferrer">mysignins.microsoft.com/security-info</a> and sign in.</p>
+                    <p class="guide-note">If you don't see the button, click Security info.</p>
+                    <div class="ms-demo" aria-label="On the Microsoft page">
+                      <span class="ms-chip"><span class="ms-plus" aria-hidden="true">+</span> Add sign-in method</span>
+                    </div>
+                    <div><button class="guide-done-btn" type="button">Done <span aria-hidden="true">✓</span></button></div>
+                  </div>
+                </div>
+                <div class="guide-part" data-part="2">
+                  <button class="guide-part-header" type="button" aria-expanded="false" aria-controls="guide-part-2-body">
+                    <span class="guide-part-num" aria-hidden="true">2</span>
+                    <span class="guide-part-title">Copy the secret key</span>
+                    <span class="guide-part-toggle">Show</span>
+                  </button>
+                  <div id="guide-part-2-body" class="guide-part-body" hidden>
+                    <p>Click through these in order, then copy the secret key. Leave the page open.</p>
+                    <div class="ms-demo ms-demo-steps" aria-label="On the Microsoft page">
+                      <span class="ms-chip ms-chip-strong">Microsoft Authenticator</span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-chip ms-chip-link">Set up a different authentication app</span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-chip ms-chip-button"><span>Next</span></span>
+                      <span class="ms-warning"><span aria-hidden="true">⚠</span> A QR code appears. <strong>Don't scan it!</strong></span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-chip ms-chip-link">Can't scan the QR code?</span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-key">
+                        <span class="ms-key-row"><strong>Secret key:</strong>
+                          <span class="ms-chip ms-chip-link ms-chip-small">Copy key
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                              stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2" />
+                              <path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg></span></span>
+                        <span class="ms-key-value">xxxxxxxxxxxxxxxx</span>
+                      </span>
+                    </div>
+                    <div><button class="guide-done-btn" type="button">Done <span aria-hidden="true">✓</span></button></div>
+                  </div>
+                </div>
+                <div class="guide-part" data-part="3">
+                  <button class="guide-part-header" type="button" aria-expanded="false" aria-controls="guide-part-3-body">
+                    <span class="guide-part-num" aria-hidden="true">3</span>
+                    <span class="guide-part-title">Paste it into Phone-Free 2FA</span>
+                    <span class="guide-part-toggle">Show</span>
+                  </button>
+                  <div id="guide-part-3-body" class="guide-part-body" hidden>
+                    <p>Give it a name and paste the secret key. Codes appear straight away.</p>
+                    <div class="guide-add">
+                      <div class="form-group">
+                        <label for="guide-label">Name</label>
+                        <input type="text" id="guide-label" placeholder="e.g. My University 2FA" autocomplete="off">
+                      </div>
+                      <div class="form-group">
+                        <label for="guide-secret">Secret key</label>
+                        <div class="input-with-toggle">
+                          <input type="password" id="guide-secret" placeholder="Paste it here" autocomplete="off"
+                            spellcheck="false">
+                          <button type="button" class="toggle-visibility" data-target="guide-secret" title="Show/hide secret key">
+                            <svg class="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                              stroke-linecap="round" stroke-linejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p id="guide-secret-validation" class="feedback-text" style="display: none;"></p>
+                      </div>
+                      <p id="guide-add-error" class="error-text" style="display: none;"></p>
+                      <button id="guide-add-btn" class="btn-primary" type="button">Add account</button>
+                      <button class="guide-skip-btn" type="button">Skip for now</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="guide-part" data-part="4">
+                  <button class="guide-part-header" type="button" aria-expanded="false" aria-controls="guide-part-4-body">
+                    <span class="guide-part-num" aria-hidden="true">4</span>
+                    <span class="guide-part-title">Confirm with a code</span>
+                    <span class="guide-part-toggle">Show</span>
+                  </button>
+                  <div id="guide-part-4-body" class="guide-part-body" hidden>
+                    <p>Back on the Microsoft page, click <strong>Next</strong> and enter the code Phone-Free 2FA shows.</p>
+                    <div class="ms-demo ms-demo-steps" aria-label="On the Microsoft page">
+                      <span class="ms-chip ms-chip-button"><span>Next</span></span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-chip ms-chip-code"><span>Code</span></span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-chip ms-chip-button"><span>Next</span></span>
+                      <span class="ms-arrow" aria-hidden="true">↓</span>
+                      <span class="ms-success"><span aria-hidden="true">✓</span> Authenticator app was successfully registered</span>
+                    </div>
+                    <p class="guide-tip">Next time you log in, Microsoft may default to the Authenticator app. Click
+                      <strong>I can't use my Microsoft Authenticator app right now → Use a verification code.</strong></p>
+                    <div><button class="guide-done-btn" type="button">Done <span aria-hidden="true">✓</span></button></div>
+                  </div>
                 </div>
               </div>
             </div>

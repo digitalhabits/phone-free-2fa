@@ -190,6 +190,116 @@ function openImageViewer(img, opener) {
     $('image-viewer-close').focus();
 }
 
+// "Set up a Microsoft account" in Instructions: one step open at a time; Done
+// ticks it off and opens the next step still to do. Ticks are remembered in
+// this browser (localStorage, not the vault).
+const GUIDE_DONE_KEY = 'redd2fa_ms_steps_done';
+
+function initGuide() {
+    const parts = [...document.querySelectorAll('.guide-part')];
+    if (!parts.length) return;
+    const numbers = parts.map((p) => Number(p.dataset.part));
+    let done = [];
+    try {
+        const saved = JSON.parse(localStorage.getItem(GUIDE_DONE_KEY));
+        if (Array.isArray(saved)) done = saved.filter((n) => numbers.includes(n));
+    } catch { /* start with nothing ticked */ }
+    let open = numbers.find((n) => !done.includes(n)) ?? null;
+    const progress = $('guide-progress');
+
+    const render = () => {
+        for (const part of parts) {
+            const n = Number(part.dataset.part);
+            const isOpen = open === n;
+            const isDone = done.includes(n);
+            part.classList.toggle('is-open', isOpen);
+            part.classList.toggle('is-done', isDone);
+            part.querySelector('.guide-part-header').setAttribute('aria-expanded', String(isOpen));
+            part.querySelector('.guide-part-body').hidden = !isOpen;
+            part.querySelector('.guide-part-num').textContent = isDone ? '✓' : String(n);
+            part.querySelector('.guide-part-toggle').textContent = isOpen ? 'Hide' : 'Show';
+        }
+        progress.textContent = `${numbers.filter((n) => done.includes(n)).length} of ${numbers.length} done`;
+    };
+
+    const markDone = (n) => {
+        if (!done.includes(n)) done.push(n);
+        try { localStorage.setItem(GUIDE_DONE_KEY, JSON.stringify(done)); } catch { /* ticks just aren't remembered */ }
+        // Open the next step still to do: after this one, else any earlier one
+        open = numbers.find((m) => m > n && !done.includes(m)) ?? numbers.find((m) => !done.includes(m)) ?? null;
+        render();
+        if (open != null) parts[numbers.indexOf(open)].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    for (const part of parts) {
+        const n = Number(part.dataset.part);
+        part.querySelector('.guide-part-header').addEventListener('click', () => {
+            open = open === n ? null : n;
+            render();
+        });
+        part.querySelector('.guide-done-btn')?.addEventListener('click', () => markDone(n));
+        // Skip: on to the next step without ticking this one off
+        part.querySelector('.guide-skip-btn')?.addEventListener('click', () => {
+            open = numbers.find((m) => m > n) ?? null;
+            render();
+            if (open != null) parts[numbers.indexOf(open)].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+    }
+
+    // The step with the name + secret key form: adding the account (the same
+    // way as the Add account dialog) ticks it off.
+    const addBtn = $('guide-add-btn');
+    const addLabel = $('guide-label');
+    const addSecret = $('guide-secret');
+    const addValidation = $('guide-secret-validation');
+    const addError = $('guide-add-error');
+    const addStep = Number(addBtn.closest('.guide-part').dataset.part);
+
+    addSecret.addEventListener('input', () => {
+        const val = addSecret.value.trim();
+        if (val.length === 0) {
+            hideElement(addValidation);
+        } else if (validateBase32(val)) {
+            addValidation.className = 'feedback-text valid';
+            addValidation.textContent = '✓ Valid secret key';
+            showElement(addValidation);
+            if (addError.textContent === SECRET_REQUIRED) hideElement(addError);
+        } else {
+            addValidation.className = 'feedback-text invalid';
+            addValidation.textContent = 'Invalid key — use letters A-Z and digits 2-7';
+            showElement(addValidation);
+        }
+    });
+    addLabel.addEventListener('input', () => {
+        if (addLabel.value.trim() && addError.textContent === LABEL_REQUIRED) hideElement(addError);
+    });
+    addSecret.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') addBtn.click();
+    });
+    addBtn.addEventListener('click', async () => {
+        if (addBtn.disabled) return;
+        hideElement(addError);
+        addBtn.disabled = true;
+        try {
+            const saved = await saveAccountFromInputs(addLabel.value, addSecret.value, null, {
+                showError: (message) => showElement(addError, message),
+                onSaved: () => {
+                    addLabel.value = '';
+                    addSecret.value = '';
+                    addSecret.type = 'password';
+                    hideElement(addValidation);
+                    updateAllVisibilityToggles();
+                },
+            });
+            if (saved) markDone(addStep);
+        } finally {
+            addBtn.disabled = false;
+        }
+    });
+
+    render();
+}
+
 function closeImageViewer(restoreFocus = true) {
     if (imageViewer.style.display === 'none') return;
     imageViewer.style.display = 'none';
@@ -693,6 +803,7 @@ function initEventListeners() {
     });
     imageViewer.addEventListener('click', () => closeImageViewer());
 
+    initGuide();
 
     // Activity tracking
     document.addEventListener('click', () => touchActivity());
@@ -1802,23 +1913,35 @@ function resetModal() {
 }
 
 async function handleSaveAccount() {
-    const key = getSessionKey();
-    if (!key) return;
-
-    const label = manualLabel.value.trim();
-    const secret = manualSecret.value.trim();
-
-    if (!label) {
-        showElement(modalError, LABEL_REQUIRED);
-        return;
-    }
-    if (!secret || !validateBase32(secret)) {
-        showElement(modalError, SECRET_REQUIRED);
-        return;
-    }
-
     // Editing keeps the account's algorithm / digits / period — see accounts.js.
     const existing = editingAccountId ? accounts.find(a => a.id === editingAccountId) : null;
+    await saveAccountFromInputs(manualLabel.value, manualSecret.value, existing, {
+        showError: (message) => showElement(modalError, message),
+        onSaved: closeAccountModal,
+    });
+}
+
+/**
+ * Validate a name and secret key, then add the account (or update `existing`).
+ * Shared by the Add/Edit dialog and the form in the Microsoft steps.
+ * `onSaved` runs once it is stored, before the list is redrawn. True if saved.
+ */
+async function saveAccountFromInputs(rawLabel, rawSecret, existing, { showError, onSaved }) {
+    const key = getSessionKey();
+    if (!key) return false;
+
+    const label = rawLabel.trim();
+    const secret = rawSecret.trim();
+
+    if (!label) {
+        showError(LABEL_REQUIRED);
+        return false;
+    }
+    if (!secret || !validateBase32(secret)) {
+        showError(SECRET_REQUIRED);
+        return false;
+    }
+
     const account = accountFromForm(existing || null, { id: generateId(), label, secret });
 
     const isEditing = Boolean(existing);
@@ -1827,15 +1950,16 @@ async function handleSaveAccount() {
         : [...accounts, account];
 
     try {
-        if (!await persistAccounts(next)) return;
+        if (!await persistAccounts(next)) return false;
     } catch {
-        showElement(modalError, 'Could not save. Please try again.');
-        return;
+        showError('Could not save. Please try again.');
+        return false;
     }
-    closeAccountModal();
+    onSaved?.();
     renderAccounts();
     updateTopBarBackupBadge();
     showToast(isEditing ? 'Account updated' : 'Account added');
+    return true;
 }
 
 // ========================================
@@ -2359,6 +2483,8 @@ function wipeSensitiveState() {
     const clearValue = (el) => { if (el) el.value = ''; };
     clearValue(manualLabel);
     clearValue(manualSecret);
+    clearValue($('guide-label'));
+    clearValue($('guide-secret'));
     clearValue(searchInput);
     clearValue(exportPassword);
     clearValue(exportPasswordConfirm);

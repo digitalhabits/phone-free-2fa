@@ -2731,7 +2731,6 @@ body:has(#setup-screen[style*="block"]) .popup-footer {
   padding: 10px 16px 12px;
   font-size: 0.82em;
   line-height: 1.55;
-  border-top-color: transparent;
 }
 
 body:has(#setup-screen[style*="block"]) .popup-footer-onboarding {

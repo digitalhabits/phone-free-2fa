@@ -16,6 +16,25 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 Pushing a `v*` tag triggers [`.github/workflows/release.yml`](.github/workflows/release.yml). The **release** job checks the tag matches `manifest.json`, runs the tests, builds `phone-free-2fa-vX.Y.zip` reproducibly (`tools/build-zip.sh`) and publishes a GitHub Release with the zip and its SHA-256. The **publish** job then waits for approval in the `store-release` environment, downloads that exact zip, verifies its hash, and submits it to the stores.
 
+## [2.10.0] - 2026-11-16
+
+### Added
+
+- **Step-by-step Microsoft setup.** The help now walks through adding a Microsoft account one step at a time, with the account form built into the steps. ([#31](https://github.com/digitalhabits/phone-free-2fa/pull/31))
+- **Bigger pictures in the General steps.** Click a picture to see it full size. ([#30](https://github.com/digitalhabits/phone-free-2fa/pull/30))
+- **A security policy.** `SECURITY.md` says how to report a vulnerability.
+
+### Changed
+
+- **A new look.** The extension now uses the Centre for Digital Habits design, the same as To-Do and Focus. ([#28](https://github.com/digitalhabits/phone-free-2fa/pull/28))
+- **A shorter footer.** It is one compact line; the longer credit shows only on the setup screen. ([#29](https://github.com/digitalhabits/phone-free-2fa/pull/29))
+
+### Fixed
+
+- **Disabling Touch ID left the wrapped passphrase behind.** It is now deleted when Touch ID is turned off. ([#27](https://github.com/digitalhabits/phone-free-2fa/pull/27))
+- **Very large backup or import files were accepted.** Files over 1 MB are now refused.
+- **On the setup screen, it was hard to tell where the footer began.** It now has the same thin line along its top as on every other screen.
+
 ## [2.9.2] - 2026-10-30
 
 ### Added
